@@ -5,7 +5,7 @@
 spring:
   datasource:
     druid:
-      url: jdbc:mysql://localhost:3306/cloud_sample?useSSL=false&allowPublicKeyRetrieval=true
+      url: jdbc:mysql://localhost:${MYSQL_PORT:3307}/cloud_sample?useSSL=false&allowPublicKeyRetrieval=true
       username: root
       password: ${MYSQL_ROOT_PASSWORD:root}
   redis:
@@ -41,6 +41,9 @@ oss:
   expire: 3600
   region: us-east-1
   object-dir-prefix: iadron
+  # MinIO ignora el role-arn, pero no puede quedarse el texto de ejemplo de DJI
+  role-arn: arn:minio:iam:::role/iadron
+  role-session-name: cloudApi
 
 ntp:
   server:
@@ -52,6 +55,32 @@ cloud-api:
     id: ${DJI_APP_ID:}
     key: ${DJI_APP_KEY:}
     license: ${DJI_APP_LICENSE:}
+
+# Vídeo en directo. El application.yml de DJI trae textos de ejemplo ("Please enter...") en campos
+# numéricos y el backend no arranca. Valores neutros hasta que montemos un servidor de streaming
+# (para la térmica en directo lo previsto es RTSP o WHIP).
+livestream:
+  url:
+    agora:
+      channel: iadron
+      token: sin-configurar
+      uid: 654321
+    rtmp:
+      url: rtmp://${SERVER_IP:192.168.1.100}/live/
+    rtsp:
+      username: iadron
+      password: iadron
+      port: 8554
+    gb28181:
+      serverIP: ${SERVER_IP:192.168.1.100}
+      serverPort: 5060
+      serverID: "34020000002000000001"
+      agentID: "34020000001320000001"
+      agentPassword: iadron
+      localPort: 5061
+      channel: "34020000001320000001"
+    whip:
+      url: http://${SERVER_IP:192.168.1.100}:1985/rtc/v1/whip/?app=live&stream=iadron
 
 logging:
   level:
@@ -71,14 +100,12 @@ iadron:
     directory: logs/iadron
   gnss:
     min-satellites: 8
-    # WARN: avisa y envía igualmente (para ver qué responde el Dock sin GNSS). BLOCK: rechaza.
     guard-mode: WARN
   drc:
     stick-frequency-hz: 10
     delay-time-ms: 300
     heartbeat-period-ms: 1000
     max-command-duration-ms: 1000
-    # Límites prudentes para interior; súbelos sólo cuando el control esté probado
     max-horizontal-speed: 1.0
     max-vertical-speed: 0.5
     max-yaw-rate: 30
