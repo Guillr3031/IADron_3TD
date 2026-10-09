@@ -74,11 +74,13 @@ La gran incógnita es **cómo despegar desde el Dock sin GNSS**: en Cloud API el
 
 Requisitos: Docker + Docker Compose, JDK 11 (o superior compilando a 11), Maven 3.8+.
 
+Guía paso a paso para Windows (con los problemas ya resueltos): `INSTALACION.md`.
+
 ```bash
 cd iadron
 cp .env.example .env          # SERVER_IP = IP del PC en la red del Dock/RC; DJI_APP_ID/KEY/LICENSE
 docker compose up -d
-docker compose logs minio-init   # debe terminar en "MinIO listo"
+docker compose logs minio-bucket minio-user minio-policy   # bucket, usuario y política creados
 
 # Servidor central de prueba (otra terminal)
 python3 tools/servidor_central_mock.py --port 8090
