@@ -36,3 +36,5 @@ build/
 /mvnw.cmd
 /logs/
 /src/test/
+
+iadron/.env
