@@ -1,0 +1,85 @@
+# Perfil IADron: activar con --spring.profiles.active=iadron
+# Sobrescribe sólo lo necesario de application.yml para la infraestructura de iadron/docker-compose.yml.
+# Las variables (${...}) se leen del entorno: ver iadron/.env.example
+
+spring:
+  datasource:
+    druid:
+      url: jdbc:mysql://localhost:3306/cloud_sample?useSSL=false&allowPublicKeyRetrieval=true
+      username: root
+      password: ${MYSQL_ROOT_PASSWORD:root}
+  redis:
+    host: localhost
+    port: 6379
+
+mqtt:
+  BASIC:
+    protocol: MQTT
+    # Dirección que se entrega al Dock / Pilot 2: tiene que ser la IP del PC en la red local
+    host: ${SERVER_IP:192.168.1.100}
+    port: 1883
+    username: JavaServer
+    password: 123456
+    client-id: iadron-backend
+    path:
+  DRC:
+    protocol: WS
+    host: ${SERVER_IP:192.168.1.100}
+    port: 8083
+    path: /mqtt
+    username: JavaServer
+    password: 123456
+
+oss:
+  enable: true
+  provider: minio
+  # El dron sube las fotos directamente aquí: tiene que ser alcanzable desde el Dock / RC
+  endpoint: http://${SERVER_IP:192.168.1.100}:9000
+  access-key: ${MINIO_APP_USER:iadron}
+  secret-key: ${MINIO_APP_PASSWORD:iadron-minio-123}
+  bucket: cloud-bucket
+  expire: 3600
+  region: us-east-1
+  object-dir-prefix: iadron
+
+ntp:
+  server:
+    # En la nave puede no haber internet: usa un NTP local si lo hay
+    host: ${NTP_HOST:pool.ntp.org}
+
+cloud-api:
+  app:
+    id: ${DJI_APP_ID:}
+    key: ${DJI_APP_KEY:}
+    license: ${DJI_APP_LICENSE:}
+
+logging:
+  level:
+    com.dji: info
+    com.dji.sample.iadron: debug
+
+# ------------------------------------------------------------------ IADron
+iadron:
+  forward:
+    central-server-url: ${IADRON_CENTRAL_URL:}
+    pose-path: /api/drone/pose
+    capture-path: /api/drone/capture
+    pose-min-interval-ms: 100
+    timeout-ms: 2000
+  flight-log:
+    enabled: true
+    directory: logs/iadron
+  gnss:
+    min-satellites: 8
+    # WARN: avisa y envía igualmente (para ver qué responde el Dock sin GNSS). BLOCK: rechaza.
+    guard-mode: WARN
+  drc:
+    stick-frequency-hz: 10
+    delay-time-ms: 300
+    heartbeat-period-ms: 1000
+    max-command-duration-ms: 1000
+    # Límites prudentes para interior; súbelos sólo cuando el control esté probado
+    max-horizontal-speed: 1.0
+    max-vertical-speed: 0.5
+    max-yaw-rate: 30
+    server-client-id: iadron-server

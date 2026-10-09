@@ -1,0 +1,81 @@
+# Infraestructura local de IADron para el backend Cloud API (Matrice 3TD + Dock 2).
+# Pensado para el PC servidor Linux de la nave, en red local. NO exponer a internet:
+# EMQX acepta conexiones anónimas para simplificar las pruebas de DRC.
+#
+# Uso:
+#   cp .env.example .env      # y pon SERVER_IP = IP del PC en la red del Dock
+#   docker compose up -d
+#   (luego arranca el backend con el perfil iadron, ver README_IADRON.md)
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: iadron_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Sólo se ejecuta la primera vez (volumen vacío). Para reiniciar: docker compose down -v
+      - ../sql/cloud_sample.sql:/docker-entrypoint-initdb.d/01_cloud_sample.sql:ro
+      - ./sql/02_iadron_seed.sql:/docker-entrypoint-initdb.d/02_iadron_seed.sql:ro
+
+  redis:
+    image: redis:6.2
+    container_name: iadron_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  emqx:
+    # El demo de DJI está escrito para EMQX 4.4 (ACL en Redis, JWT para DRC).
+    image: emqx/emqx:4.4.19
+    container_name: iadron_emqx
+    restart: unless-stopped
+    environment:
+      EMQX_ALLOW_ANONYMOUS: "true"
+      EMQX_ACL_NOMATCH: "allow"
+      EMQX_LISTENER__WS__EXTERNAL: "8083"
+    ports:
+      - "1883:1883"    # MQTT: Dock 2 / Pilot 2 y backend
+      - "8083:8083"    # MQTT sobre WebSocket: canal DRC
+      - "18083:18083"  # panel web de EMQX (admin / public)
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: iadron_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"    # API S3: el dron sube aquí las fotos -> debe ser alcanzable por SERVER_IP
+      - "9001:9001"    # consola web
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done;
+      mc mb --ignore-existing local/cloud-bucket;
+      mc admin user add local $${MINIO_APP_USER:-iadron} $${MINIO_APP_PASSWORD:-iadron-minio-123} || true;
+      mc admin policy attach local readwrite --user $${MINIO_APP_USER:-iadron} || true;
+      echo 'MinIO listo';
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_APP_USER: ${MINIO_APP_USER:-iadron}
+      MINIO_APP_PASSWORD: ${MINIO_APP_PASSWORD:-iadron-minio-123}
+
+volumes:
+  mysql_data:
+  minio_data:

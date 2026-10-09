@@ -3,6 +3,8 @@ package com.dji.sample.media.service.impl;
 import com.dji.sample.component.oss.model.OssConfiguration;
 import com.dji.sample.component.websocket.model.BizCodeEnum;
 import com.dji.sample.component.websocket.service.IWebSocketMessageService;
+import com.dji.sample.iadron.service.CaptureEvents;
+import com.dji.sample.iadron.service.PoseTracker;
 import com.dji.sample.manage.model.dto.DeviceDTO;
 import com.dji.sample.manage.model.enums.UserTypeEnum;
 import com.dji.sample.manage.service.IDeviceRedisService;
@@ -60,6 +62,10 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
     @Autowired
     private IMediaRedisService mediaRedisService;
 
+    // IADron: reenvío de cada foto subida al servidor central.
+    @Autowired
+    private PoseTracker poseTracker;
+
     @Override
     public Boolean fastUpload(String workspaceId, String fingerprint) {
         return fileService.checkExist(workspaceId, fingerprint);
@@ -67,7 +73,14 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
 
     @Override
     public Integer saveMediaFile(String workspaceId, MediaUploadCallbackRequest file) {
-        return fileService.saveFile(workspaceId, file);
+        Integer id = fileService.saveFile(workspaceId, file);
+        // IADron: foto subida desde Pilot 2 (RC Plus como gateway).
+        try {
+            poseTracker.onCapture(CaptureEvents.fromPilot(file));
+        } catch (RuntimeException e) {
+            log.warn("[IADRON] No se pudo reenviar la captura {}: {}", file.getName(), e.getMessage());
+        }
+        return id;
     }
 
     @Override
@@ -116,6 +129,13 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
         }
 
         notifyUploadedCount(mediaFileCount, request, jobId, device);
+
+        // IADron: foto subida desde el Dock 2.
+        try {
+            poseTracker.onCapture(CaptureEvents.fromDock(request.getGateway(), callback));
+        } catch (RuntimeException e) {
+            log.warn("[IADRON] No se pudo reenviar la captura: {}", e.getMessage());
+        }
         return new TopicEventsResponse<MqttReply>().setData(MqttReply.success());
     }
 

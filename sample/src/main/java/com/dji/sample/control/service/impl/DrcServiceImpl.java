@@ -30,7 +30,9 @@ import com.dji.sdk.cloudapi.device.OsdDockDrone;
 import com.dji.sdk.cloudapi.wayline.FlighttaskProgress;
 import com.dji.sdk.common.HttpResultResponse;
 import com.dji.sdk.common.SDKManager;
+import com.dji.sdk.mqtt.IMqttTopicService;
 import com.dji.sdk.mqtt.TopicConst;
+import com.dji.sdk.mqtt.drc.DrcUpSubscribe;
 import com.dji.sdk.mqtt.services.ServicesReplyData;
 import com.dji.sdk.mqtt.services.TopicServicesResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -83,6 +85,14 @@ public class DrcServiceImpl implements IDrcService {
 
     @Autowired
     private AbstractControlService abstractControlService;
+
+    // IADron: el demo original nunca se suscribe a drc/up, así que el backend no recibía
+    // la OSD de alta frecuencia ni las respuestas de heartbeat/joystick.
+    @Autowired
+    private DrcUpSubscribe drcUpSubscribe;
+
+    @Autowired
+    private IMqttTopicService topicService;
 
     @Override
     public void setDrcModeInRedis(String dockSn, String clientId) {
@@ -158,6 +168,7 @@ public class DrcServiceImpl implements IDrcService {
         if (deviceService.checkDockDrcMode(param.getDockSn())
                 && param.getClientId().equals(this.getDrcModeInRedis(param.getDockSn()))) {
             refreshAcl(param.getDockSn(), param.getClientId(), topic, subTopic);
+            drcUpSubscribe.subscribe(SDKManager.getDeviceSDK(param.getDockSn()));
             return JwtAclDTO.builder().sub(List.of(subTopic)).pub(List.of(pubTopic)).build();
         }
 
@@ -180,6 +191,7 @@ public class DrcServiceImpl implements IDrcService {
         }
 
         refreshAcl(param.getDockSn(), param.getClientId(), pubTopic, subTopic);
+        drcUpSubscribe.subscribe(SDKManager.getDeviceSDK(param.getDockSn()));
         return JwtAclDTO.builder().sub(List.of(subTopic)).pub(List.of(pubTopic)).build();
     }
 
@@ -211,6 +223,8 @@ public class DrcServiceImpl implements IDrcService {
             flighttaskService.updateJobStatus(workspaceId, jobId, UpdateJobParam.builder().status(WaylineTaskStatusEnum.RESUME).build());
         }
 
+        topicService.unsubscribe(TopicConst.THING_MODEL_PRE + TopicConst.PRODUCT + param.getDockSn()
+                + TopicConst.DRC + TopicConst.UP);
         this.delDrcModeInRedis(param.getDockSn());
         RedisOpsUtils.del(RedisConst.MQTT_ACL_PREFIX + param.getClientId());
     }

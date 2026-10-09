@@ -4,6 +4,7 @@ import com.dji.sample.control.model.enums.DroneAuthorityEnum;
 import com.dji.sample.control.model.enums.RemoteDebugMethodEnum;
 import com.dji.sample.control.model.param.*;
 import com.dji.sample.control.service.IControlService;
+import com.dji.sample.iadron.service.GnssGuard;
 import com.dji.sdk.common.HttpResultResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,10 @@ public class DockController {
     @Autowired
     private IControlService controlService;
 
+    // IADron: estos dos comandos usan lat/lon; en interior no hay GNSS.
+    @Autowired
+    private GnssGuard gnssGuard;
+
     @PostMapping("/{sn}/jobs/{service_identifier}")
     public HttpResultResponse createControlJob(@PathVariable String sn,
                                                @PathVariable("service_identifier") String serviceIdentifier,
@@ -33,7 +38,8 @@ public class DockController {
 
     @PostMapping("/{sn}/jobs/fly-to-point")
     public HttpResultResponse flyToPoint(@PathVariable String sn, @Valid @RequestBody FlyToPointParam param) {
-        return controlService.flyToPoint(sn, param);
+        return gnssGuard.check(sn, "fly-to-point")
+                .orElseGet(() -> controlService.flyToPoint(sn, param));
     }
 
     @DeleteMapping("/{sn}/jobs/fly-to-point")
@@ -43,7 +49,8 @@ public class DockController {
 
     @PostMapping("/{sn}/jobs/takeoff-to-point")
     public HttpResultResponse takeoffToPoint(@PathVariable String sn, @Valid @RequestBody TakeoffToPointParam param) {
-        return controlService.takeoffToPoint(sn, param);
+        return gnssGuard.check(sn, "takeoff-to-point")
+                .orElseGet(() -> controlService.takeoffToPoint(sn, param));
     }
 
     @PostMapping("/{sn}/authority/flight")

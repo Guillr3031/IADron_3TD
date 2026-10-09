@@ -2,6 +2,7 @@ package com.dji.sample.manage.service.impl;
 
 import com.dji.sample.component.websocket.model.BizCodeEnum;
 import com.dji.sample.component.websocket.service.IWebSocketMessageService;
+import com.dji.sample.iadron.service.PoseTracker;
 import com.dji.sample.manage.model.dto.DeviceDTO;
 import com.dji.sample.manage.model.dto.DevicePayloadReceiver;
 import com.dji.sample.manage.model.enums.DeviceFirmwareStatusEnum;
@@ -56,6 +57,10 @@ public class SDKDeviceService extends AbstractDeviceService {
 
     @Autowired
     private IDevicePayloadService devicePayloadService;
+
+    // IADron: punto de entrada de la telemetría hacia el servidor central.
+    @Autowired
+    private PoseTracker poseTracker;
 
     @Override
     public TopicStatusResponse<MqttReply> updateTopoOnline(TopicStatusRequest<UpdateTopo> request, MessageHeaders headers) {
@@ -179,6 +184,9 @@ public class SDKDeviceService extends AbstractDeviceService {
         deviceRedisService.setDeviceOsd(from, request.getData());
 
         deviceService.pushOsdDataToWeb(device.getWorkspaceId(), BizCodeEnum.DEVICE_OSD, from, request.getData());
+
+        // IADron
+        poseTracker.onDockDroneOsd(from, request.getGateway(), request.getData());
     }
 
     @Override
@@ -227,6 +235,9 @@ public class SDKDeviceService extends AbstractDeviceService {
         deviceRedisService.setDeviceOnline(device);
 
         OsdRcDrone data = request.getData();
+
+        // IADron
+        poseTracker.onRcDroneOsd(from, request.getGateway(), data);
         deviceService.pushOsdDataToPilot(device.getWorkspaceId(), from,
                 new DeviceOsdHost()
                         .setLatitude(data.getLatitude())
