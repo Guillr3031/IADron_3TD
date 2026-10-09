@@ -38,3 +38,5 @@ build/
 /src/test/
 
 iadron/.env
+
+iadron/.env
