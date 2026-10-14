@@ -1,6 +1,5 @@
 package com.dji.sdk.config.version;
 
-import com.dji.sdk.exception.CloudSDKVersionException;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 import java.util.Arrays;
@@ -15,6 +14,9 @@ public enum Dock2ThingVersionEnum implements IThingVersion {
     V1_1_2("1.1.2", CloudSDKVersionEnum.V1_0_1),
 
     V1_2_0("1.2.0", CloudSDKVersionEnum.V1_0_3),
+
+    // IADron: firmware actual del Dock 2 (oct 2026). El CloudSDK del demo solo llega a 1.0.3.
+    V1_3_2("1.3.2", CloudSDKVersionEnum.V1_0_3),
 
     ;
 
@@ -37,7 +39,10 @@ public enum Dock2ThingVersionEnum implements IThingVersion {
     }
 
     public static Dock2ThingVersionEnum find(String thingVersion) {
-        return Arrays.stream(values()).filter(thingVersionEnum -> thingVersionEnum.thingVersion.equals(thingVersion))
-                .findAny().orElseThrow(() -> new CloudSDKVersionException(thingVersion));
+        // IADron: si una actualización de firmware trae una versión desconocida, en lugar de
+        // rechazar el Dock (CloudSDKVersionException -> sale "Disconnected") se usa la más nueva conocida.
+        Dock2ThingVersionEnum[] versiones = values();
+        return Arrays.stream(versiones).filter(thingVersionEnum -> thingVersionEnum.thingVersion.equals(thingVersion))
+                .findAny().orElse(versiones[versiones.length - 1]);
     }
 }
