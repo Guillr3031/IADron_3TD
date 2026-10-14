@@ -1,6 +1,5 @@
 package com.dji.sdk.cloudapi.device;
 
-import com.dji.sdk.exception.CloudSDKException;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -22,7 +21,7 @@ public enum CameraModeEnum {
     PANORAMA(3),
 
     UNSUPPORTED(-1),
-    
+
     ;
 
     private final int mode;
@@ -38,7 +37,10 @@ public enum CameraModeEnum {
 
     @JsonCreator
     public static CameraModeEnum find(int mode) {
+        // IADron: el firmware actual del M3TD manda modos nuevos (p. ej. 4) que el SDK no conoce.
+        // Antes se lanzaba una excepción y se perdía la telemetría entera del dron; ahora se marca
+        // como UNSUPPORTED y el resto del mensaje se procesa con normalidad.
         return Arrays.stream(values()).filter(modeEnum -> modeEnum.mode == mode).findAny()
-                .orElseThrow(() -> new CloudSDKException(CameraModeEnum.class, mode));
+                .orElse(UNSUPPORTED);
     }
 }

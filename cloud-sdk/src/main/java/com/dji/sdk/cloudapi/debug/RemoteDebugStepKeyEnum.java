@@ -1,6 +1,5 @@
 package com.dji.sdk.cloudapi.debug;
 
-import com.dji.sdk.exception.CloudSDKException;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -59,7 +58,12 @@ public enum RemoteDebugStepKeyEnum {
 
     FREE_PUTTER("free_putter", "Free Putter"),
 
-    STOP_CHARGE("stop_charge", "Stop charging");
+    STOP_CHARGE("stop_charge", "Stop charging"),
+
+    // IADron: pasos que manda el firmware actual del Dock 2 y el SDK del demo no conoce.
+    START_CHARGE("start_charge", "Start charging"),
+
+    UNKNOWN("unknown", "Unknown step");
 
     private final String stepKey;
 
@@ -81,8 +85,9 @@ public enum RemoteDebugStepKeyEnum {
 
     @JsonCreator
     public static RemoteDebugStepKeyEnum find(String stepKey) {
+        // IADron: un paso desconocido ya no rompe el evento de progreso de la orden.
         return Arrays.stream(values()).filter(stepKeyEnum -> stepKeyEnum.stepKey.equals(stepKey)).findAny()
-            .orElseThrow(() -> new CloudSDKException(RemoteDebugStepKeyEnum.class,stepKey));
+                .orElse(UNKNOWN);
     }
 
 }

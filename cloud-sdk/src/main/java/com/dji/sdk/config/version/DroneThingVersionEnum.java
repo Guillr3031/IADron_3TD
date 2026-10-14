@@ -1,6 +1,5 @@
 package com.dji.sdk.config.version;
 
-import com.dji.sdk.exception.CloudSDKVersionException;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +23,9 @@ public enum DroneThingVersionEnum implements IThingVersion {
     V1_1_3("1.1.3", CloudSDKVersionEnum.V1_0_2),
 
     V1_2_0("1.2.0", CloudSDKVersionEnum.V1_0_3),
+
+    // IADron: firmware actual del Matrice 3TD (oct 2026). El CloudSDK del demo solo llega a 1.0.3.
+    V1_3_2("1.3.2", CloudSDKVersionEnum.V1_0_3),
 
     ;
 
@@ -53,6 +55,11 @@ public enum DroneThingVersionEnum implements IThingVersion {
         if (opt.isPresent()) {
             return opt.get();
         }
-        throw new CloudSDKVersionException(thingVersion);
+        // IADron: versión desconocida (firmware más nuevo que el demo) -> usar la más nueva conocida
+        // en lugar de rechazar el dron (CloudSDKVersionException -> el dron nunca sale online).
+        DroneThingVersionEnum[] versiones = values();
+        DroneThingVersionEnum masNueva = versiones[versiones.length - 1];
+        log.warn("Thing version {} del dron desconocida; se usa {}", thingVersion, masNueva.thingVersion);
+        return masNueva;
     }
 }

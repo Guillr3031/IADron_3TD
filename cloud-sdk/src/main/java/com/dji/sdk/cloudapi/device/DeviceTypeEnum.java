@@ -1,6 +1,5 @@
 package com.dji.sdk.cloudapi.device;
 
-import com.dji.sdk.exception.CloudSDKException;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -66,6 +65,9 @@ public enum DeviceTypeEnum {
     M3D_CAMERA(80),
 
     M3TD_CAMERA(81),
+
+    // IADron: tipos que el firmware actual manda y el SDK del demo no conoce (p. ej. 176).
+    UNKNOWN(-1),
     ;
 
     private final int type;
@@ -81,7 +83,8 @@ public enum DeviceTypeEnum {
 
     @JsonCreator
     public static DeviceTypeEnum find(int type) {
+        // IADron: antes lanzaba excepción y se perdía el mensaje entero (p. ej. state del dron con tipo 176).
         return Arrays.stream(values()).filter(typeEnum -> typeEnum.type == type).findAny()
-                .orElseThrow(() -> new CloudSDKException(DeviceTypeEnum.class, type));
+                .orElse(UNKNOWN);
     }
 }
