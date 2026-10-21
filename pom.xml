@@ -21,6 +21,8 @@
         <maven.compiler.target>11</maven.compiler.target>
         <javax-activation.version>1.1.1</javax-activation.version>
         <mqtt.version>5.5.5</mqtt.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
 
     <dependencyManagement>

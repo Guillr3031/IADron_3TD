@@ -3,6 +3,8 @@
 # Las variables (${...}) se leen del entorno: ver iadron/.env.example
 
 spring:
+  config:
+    import: optional:file:C:/Users/BEC/IdeaProjects/IADron_3TD/iadron/.env[.properties]
   datasource:
     druid:
       url: jdbc:mysql://localhost:${MYSQL_PORT:3307}/cloud_sample?useSSL=false&allowPublicKeyRetrieval=true
@@ -34,7 +36,7 @@ oss:
   enable: true
   provider: minio
   # El dron sube las fotos directamente aquí: tiene que ser alcanzable desde el Dock / RC
-  endpoint: http://${SERVER_IP:192.168.1.100}:9000
+  endpoint: http://10.12.54.211:9000
   access-key: ${MINIO_APP_USER:iadron}
   secret-key: ${MINIO_APP_PASSWORD:iadron-minio-123}
   bucket: cloud-bucket
@@ -66,7 +68,7 @@ livestream:
       token: sin-configurar
       uid: 654321
     rtmp:
-      url: rtmp://${SERVER_IP:192.168.1.100}/live/
+      url: rtmp://${SERVER_IP}/live/
     rtsp:
       username: iadron
       password: iadron
@@ -89,6 +91,13 @@ logging:
 
 # ------------------------------------------------------------------ IADron
 iadron:
+  emqx:
+    api-url: http://localhost:18083/api/v4
+    api-user: admin
+    api-password: public
+    auto-reconnect: false
+    docks: 7CTXM8S00B00YC
+    drone: 1581F6Q8D247300G9889
   forward:
     central-server-url: ${IADRON_CENTRAL_URL:}
     pose-path: /api/drone/pose
@@ -110,3 +119,16 @@ iadron:
     max-vertical-speed: 0.5
     max-yaw-rate: 30
     server-client-id: iadron-server
+  ia:
+    enabled: ${IA_ENABLED:true}
+    url: ${IA_URL:http://localhost:6789/iadron/api/v1/ia/mock}   # de momento, la IA falsa
+    send-mode: ${IA_SEND_MODE:BASE64}
+    only-thermal: true
+    payload: ${IA_PAYLOAD:THERMAL_IMAGE}     # RJPEG = enviar el fichero tal cual, como antes
+    irp-path: ${IA_IRP_PATH:C:/Users/BEC/IdeaProjects/Thermal_SDK/utility/bin/windows/release_x64/dji_irp.exe}
+  live:
+    ffmpeg-path: ffmpeg
+    rtsp-url: rtsp://localhost:8554/live/1581F6Q8D247300G9889-81-0-0
+    fps: 1
+    video-delay-ms: 1500
+    alert-threshold-c: 60

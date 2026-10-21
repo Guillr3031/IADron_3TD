@@ -40,7 +40,7 @@ public class TakeoffToPointRequest extends BaseModel {
     @NotNull
     private Float targetHeight;
 
-    @Min(20)
+    @Min(2)
     @Max(1500)
     @NotNull
     private Float securityTakeoffHeight;

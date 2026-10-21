@@ -13,6 +13,9 @@ import com.dji.sample.manage.service.IDeviceRedisService;
 import com.dji.sample.manage.service.IDeviceService;
 import com.dji.sdk.cloudapi.device.*;
 import com.dji.sdk.cloudapi.device.api.AbstractDeviceService;
+import com.dji.sdk.cloudapi.property.DockDroneCommanderFlightHeight;
+import com.dji.sdk.cloudapi.property.DockDroneCommanderModeLostAction;
+import com.dji.sdk.cloudapi.property.DockDroneRthMode;
 import com.dji.sdk.cloudapi.tsa.DeviceIconUrl;
 import com.dji.sdk.cloudapi.tsa.IconUrlEnum;
 import com.dji.sdk.config.version.GatewayManager;
@@ -20,6 +23,7 @@ import com.dji.sdk.common.SDKManager;
 import com.dji.sdk.mqtt.MqttReply;
 import com.dji.sdk.mqtt.osd.TopicOsdRequest;
 import com.dji.sdk.mqtt.state.TopicStateRequest;
+import com.dji.sdk.mqtt.state.TopicStateResponse;
 import com.dji.sdk.mqtt.status.TopicStatusRequest;
 import com.dji.sdk.mqtt.status.TopicStatusResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -302,28 +306,38 @@ public class SDKDeviceService extends AbstractDeviceService {
 
     @Override
     public void dockControlSourceUpdate(TopicStateRequest<DockDroneControlSource> request, MessageHeaders headers) {
-        // If the control source is empty, it will not be processed.
-        if (ControlSourceEnum.UNKNOWN == request.getData().getControlSource()) {
-            return;
-        }
         Optional<DeviceDTO> deviceOpt = deviceRedisService.getDeviceOnline(request.getFrom());
-        if (deviceOpt.isEmpty()) {
-            return;
-        }
         Optional<DeviceDTO> dockOpt = deviceRedisService.getDeviceOnline(request.getGateway());
-        if (dockOpt.isEmpty()) {
+        if (deviceOpt.isEmpty() || dockOpt.isEmpty()) {
+            log.debug("control_source ignorado: dron o Dock no online ({})", request.getFrom());
             return;
         }
 
-        deviceService.updateFlightControl(dockOpt.get(), request.getData().getControlSource());
-        devicePayloadService.updatePayloadControl(deviceOpt.get(),
-                request.getData().getPayloads().stream()
-                        .map(p -> DevicePayloadReceiver.builder()
-                                .controlSource(p.getControlSource())
-                                .payloadIndex(p.getPayloadIndex())
-                                .sn(p.getSn())
-                                .deviceSn(request.getFrom())
-                                .build()).collect(Collectors.toList()));
+        // Control de vuelo: solo si viene informado.
+        if (ControlSourceEnum.UNKNOWN != request.getData().getControlSource()) {
+            deviceService.updateFlightControl(dockOpt.get(), request.getData().getControlSource());
+        }
+
+        if (request.getData().getPayloads() == null) {
+            return;
+        }
+        List<DevicePayloadReceiver> payloads = request.getData().getPayloads().stream()
+                .map(p -> DevicePayloadReceiver.builder()
+                        .controlSource(p.getControlSource())
+                        .payloadIndex(p.getPayloadIndex())
+                        .sn(Objects.requireNonNullElse(p.getSn(),
+                                request.getFrom() + "-" + p.getPayloadIndex().getPosition().getPosition()))
+                        .deviceSn(request.getFrom())
+                        .build())
+                .collect(Collectors.toList());
+
+
+        boolean anyUnknown = payloads.stream().anyMatch(p -> ControlSourceEnum.UNKNOWN == p.getControlSource());
+        if (anyUnknown) {
+            devicePayloadService.savePayloadDTOs(deviceOpt.get(), payloads);
+        } else {
+            devicePayloadService.updatePayloadControl(deviceOpt.get(), payloads);
+        }
     }
 
     @Override
@@ -350,6 +364,85 @@ public class SDKDeviceService extends AbstractDeviceService {
                                 .sn(p.getSn())
                                 .deviceSn(request.getFrom())
                                 .build()).collect(Collectors.toList()));
+    }
+
+    /**
+     * IADron: info del módem 4G (dongle) del Dock 2. No la usamos.
+     * Sin este override, la implementación por defecto lanza UnsupportedOperationException.
+     * El Dock no pide respuesta (needReply=false), así que devolvemos null.
+     */
+    @Override
+    public TopicStateResponse<MqttReply> dongleInfos(TopicStateRequest<DongleInfos> request, MessageHeaders headers) {
+        return null;
+    }
+
+    // ---------------------------------------------------------------------------------
+    // IADron: mensajes "state" que el demo no implementa. Sin estos overrides, la clase
+    // base lanza UnsupportedOperationException cada vez que el Dock (firmware 17.x) los
+    // envía. Por ahora no los usamos: se aceptan y se ignoran. Si alguno hace falta en
+    // el futuro (p. ej. live status para el vídeo), se implementa aquí.
+    // ---------------------------------------------------------------------------------
+
+    @Override
+    public void dockLiveStatusUpdate(TopicStateRequest<DockLiveStatus> request, MessageHeaders headers) {
+        log.debug("Dock live status: {}", request.getData());
+    }
+
+    @Override
+    public void rcLiveStatusUpdate(TopicStateRequest<RcLiveStatus> request, MessageHeaders headers) {
+        log.debug("RC live status: {}", request.getData());
+    }
+
+    @Override
+    public void dockWpmzVersionUpdate(TopicStateRequest<DockDroneWpmzVersion> request, MessageHeaders headers) {
+        log.debug("WPMZ version: {}", request.getData());
+    }
+
+    @Override
+    public void dockThermalSupportedPaletteStyle(TopicStateRequest<DockDroneThermalSupportedPaletteStyle> request, MessageHeaders headers) {
+        log.debug("Thermal palette styles: {}", request.getData());
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneRthMode(TopicStateRequest<DockDroneRthMode> request, MessageHeaders headers) {
+        log.debug("RTH mode: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneCurrentRthMode(TopicStateRequest<DockDroneCurrentRthMode> request, MessageHeaders headers) {
+        log.debug("Current RTH mode: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneCommanderModeLostAction(TopicStateRequest<DockDroneCommanderModeLostAction> request, MessageHeaders headers) {
+        log.debug("Commander mode lost action: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneCurrentCommanderFlightMode(TopicStateRequest<DockDroneCurrentCommanderFlightMode> request, MessageHeaders headers) {
+        log.debug("Current commander flight mode: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneCommanderFlightHeight(TopicStateRequest<DockDroneCommanderFlightHeight> request, MessageHeaders headers) {
+        log.debug("Commander flight height: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockDroneModeCodeReason(TopicStateRequest<DockDroneModeCodeReason> request, MessageHeaders headers) {
+        log.debug("Mode code reason: {}", request.getData());
+        return null;
+    }
+
+    @Override
+    public TopicStateResponse<MqttReply> dockSilentMode(TopicStateRequest<DockSilentMode> request, MessageHeaders headers) {
+        log.debug("Silent mode: {}", request.getData());
+        return null;
     }
 
     private void dockGoOnline(DeviceDTO gateway, DeviceDTO subDevice) {
@@ -467,7 +560,7 @@ public class SDKDeviceService extends AbstractDeviceService {
 
             // Query the model information of this gateway device.
             dictionaryService.getOneDictionaryInfoByTypeSubType(
-                    device.getDomain().getDomain(), device.getType().getType(), device.getSubType().getSubType())
+                            device.getDomain().getDomain(), device.getType().getType(), device.getSubType().getSubType())
                     .ifPresent(entity -> {
                         device.setDeviceName(entity.getDeviceName());
                         device.setNickname(entity.getDeviceName());

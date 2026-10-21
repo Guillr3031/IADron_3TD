@@ -6,6 +6,7 @@ import com.dji.sample.control.model.enums.RemoteDebugMethodEnum;
 import com.dji.sample.control.model.param.*;
 import com.dji.sample.control.service.IControlService;
 import com.dji.sample.manage.model.dto.DeviceDTO;
+import com.dji.sample.manage.model.dto.DevicePayloadReceiver;
 import com.dji.sample.manage.service.IDevicePayloadService;
 import com.dji.sample.manage.service.IDeviceRedisService;
 import com.dji.sample.manage.service.IDeviceService;
@@ -15,6 +16,7 @@ import com.dji.sdk.cloudapi.control.TakeoffToPointRequest;
 import com.dji.sdk.cloudapi.control.api.AbstractControlService;
 import com.dji.sdk.cloudapi.debug.DebugMethodEnum;
 import com.dji.sdk.cloudapi.debug.api.AbstractDebugService;
+import com.dji.sdk.cloudapi.device.ControlSourceEnum;
 import com.dji.sdk.cloudapi.device.DockModeCodeEnum;
 import com.dji.sdk.cloudapi.device.DroneModeCodeEnum;
 import com.dji.sdk.cloudapi.device.PayloadIndex;
@@ -30,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -195,9 +198,36 @@ public class ControlServiceImpl implements IControlService {
         }
 
         ServicesReplyData serviceReply = response.getData();
-        return serviceReply.getResult().isSuccess() ?
-                HttpResultResponse.success()
-                : HttpResultResponse.error(serviceReply.getResult());
+        if (!serviceReply.getResult().isSuccess()) {
+            return HttpResultResponse.error(serviceReply.getResult());
+        }
+        // IADron: el Dock ha aceptado el control de la cámara. Con el firmware actual el dron no
+        // envía después su control_source, así que lo marcamos nosotros como "A" (MySQL + Redis).
+        if (DroneAuthorityEnum.PAYLOAD == authority) {
+            markPayloadControlled(sn, param.getPayloadIndex());
+        }
+        return HttpResultResponse.success();
+    }
+
+    /**
+     * IADron: guarda la cámara del dron con control_source = A en MySQL y en Redis,
+     * que es lo que comprueba PayloadCommandsHandler antes de Take Photo, etc.
+     */
+    private void markPayloadControlled(String dockSn, String payloadIndex) {
+        deviceRedisService.getDeviceOnline(dockSn)
+                .map(DeviceDTO::getChildDeviceSn)
+                .flatMap(deviceRedisService::getDeviceOnline)
+                .ifPresentOrElse(drone -> {
+                    PayloadIndex index = new PayloadIndex(payloadIndex);
+                    devicePayloadService.savePayloadDTOs(drone, List.of(
+                            DevicePayloadReceiver.builder()
+                                    .sn(drone.getDeviceSn() + "-" + index.getPosition().getPosition())
+                                    .deviceSn(drone.getDeviceSn())
+                                    .payloadIndex(index)
+                                    .controlSource(ControlSourceEnum.A)
+                                    .build()));
+                    log.info("[IADRON] Control de cámara {} marcado como A en el dron {}", payloadIndex, drone.getDeviceSn());
+                }, () -> log.warn("[IADRON] No se pudo marcar el control de cámara: dron no online (Dock {})", dockSn));
     }
 
     private Boolean checkPayloadAuthority(String sn, String payloadIndex) {

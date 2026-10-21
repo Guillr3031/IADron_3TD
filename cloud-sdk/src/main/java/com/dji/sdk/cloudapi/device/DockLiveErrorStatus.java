@@ -21,6 +21,9 @@ public class DockLiveErrorStatus {
 
     private boolean success;
 
+    // IADron: código original recibido, para no perderlo si el SDK no lo conoce.
+    private int rawCode;
+
     @Override
     public String toString() {
         return "{" +
@@ -31,17 +34,34 @@ public class DockLiveErrorStatus {
 
     @JsonCreator
     public DockLiveErrorStatus(int code) {
+        this.rawCode = code;
         this.success = MqttReply.CODE_SUCCESS == code;
-        this.source = ErrorCodeSourceEnum.find(code / MOD);
-        this.errorCode = LiveErrorCodeEnum.find(code % MOD);
+        // IADron: con el firmware 17.x el Dock manda error_status = 0 cuando el directo va bien.
+        // 0 / MOD = 0 no es ninguna fuente conocida y el demo lanzaba excepción, perdiendo el live_status.
+        if (this.success) {
+            return;
+        }
+        try {
+            this.source = ErrorCodeSourceEnum.find(code / MOD);
+            this.errorCode = LiveErrorCodeEnum.find(code % MOD);
+        } catch (RuntimeException e) {
+            // Código que el SDK no conoce: se conserva en rawCode.
+            this.errorCode = null;
+        }
     }
 
     public String getMessage() {
-        return errorCode.getMessage();
+        if (success) {
+            return "success";
+        }
+        return errorCode != null ? errorCode.getMessage() : "unknown (" + rawCode + ")";
     }
 
     @JsonValue
     public Integer getCode() {
+        if (success || errorCode == null) {
+            return rawCode;
+        }
         return source.getSource() * MOD + errorCode.getCode();
     }
 

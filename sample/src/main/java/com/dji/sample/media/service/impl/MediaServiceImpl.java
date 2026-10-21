@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import com.dji.sample.storage.service.impl.StorageServiceImpl;
 
 import java.util.List;
 import java.util.Objects;
@@ -43,6 +44,9 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
 
     @Autowired
     private IFileService fileService;
+
+    @Autowired
+    private StorageServiceImpl storageServiceImpl;
 
     @Autowired
     private IWaylineJobService waylineJobService;
@@ -66,6 +70,9 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
     @Autowired
     private PoseTracker poseTracker;
 
+    @Autowired
+    private com.dji.sample.iadron.ia.IaForwarder iaForwarder;
+
     @Override
     public Boolean fastUpload(String workspaceId, String fingerprint) {
         return fileService.checkExist(workspaceId, fingerprint);
@@ -81,6 +88,13 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
             log.warn("[IADRON] No se pudo reenviar la captura {}: {}", file.getName(), e.getMessage());
         }
         return id;
+    }
+
+    @Override
+    public com.dji.sdk.mqtt.requests.TopicRequestsResponse<com.dji.sdk.mqtt.MqttReply<com.dji.sdk.cloudapi.storage.StsCredentialsResponse>>
+        storageConfigGet(com.dji.sdk.mqtt.requests.TopicRequestsRequest<com.dji.sdk.cloudapi.media.StorageConfigGet> request,
+                         org.springframework.messaging.MessageHeaders headers){
+        return storageServiceImpl.storageConfigGet(request, headers);
     }
 
     @Override
@@ -127,6 +141,9 @@ public class MediaServiceImpl extends AbstractMediaService implements IMediaServ
             log.error("Failed to save the file to the database, please check the data manually.");
             return null;
         }
+        iaForwarder.onFileUploaded(request.getGateway(), callback.getFile());
+
+
 
         notifyUploadedCount(mediaFileCount, request, jobId, device);
 

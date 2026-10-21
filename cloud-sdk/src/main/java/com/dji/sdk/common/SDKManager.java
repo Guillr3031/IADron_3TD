@@ -32,6 +32,10 @@ public class SDKManager {
                 "The device has not been registered, please call the 'SDKManager.registerDevice()' method to register the device first.");
     }
 
+    public static boolean isRegistered(String gatewaySn) {
+        return gatewaySn != null && SDK_MAP.containsKey(gatewaySn);
+    }
+
     public static GatewayManager registerDevice(String gatewaySn, String droneSn,
             DeviceDomainEnum domain, DeviceTypeEnum type, DeviceSubTypeEnum subType, String gatewayThingVersion, String droneThingVersion) {
         return registerDevice(gatewaySn, droneSn, GatewayTypeEnum.find(DeviceEnum.find(domain, type, subType)), gatewayThingVersion, droneThingVersion);

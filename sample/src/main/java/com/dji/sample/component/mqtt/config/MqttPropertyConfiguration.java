@@ -100,20 +100,25 @@ public class MqttPropertyConfiguration {
     @Bean
     public MqttConnectOptions mqttConnectOptions() {
         MqttClientOptions customizeOptions = getBasicClientOptions();
-        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
-        mqttConnectOptions.setServerURIs(new String[]{ getBasicMqttAddress() });
-        mqttConnectOptions.setUserName(customizeOptions.getUsername());
-        mqttConnectOptions.setPassword(StringUtils.hasText(customizeOptions.getPassword()) ?
+        MqttConnectOptions o = new MqttConnectOptions();
+        o.setServerURIs(new String[]{ getBasicMqttAddress() });
+        o.setUserName(customizeOptions.getUsername());
+        o.setPassword(StringUtils.hasText(customizeOptions.getPassword()) ?
                 customizeOptions.getPassword().toCharArray() : new char[0]);
-        mqttConnectOptions.setAutomaticReconnect(true);
-        mqttConnectOptions.setKeepAliveInterval(10);
-        return mqttConnectOptions;
+        o.setAutomaticReconnect(true);
+        o.setMaxReconnectDelay(5000);   // IADron: reintenta cada ≤5 s
+        o.setKeepAliveInterval(10);
+        o.setConnectionTimeout(10);
+        o.setMaxInflight(1000);         // IADron: por defecto 10 -> "Too many publishes in progress"
+        o.setCleanSession(false);       // IADron: EMQX guarda suscripciones y mensajes QoS1 si el servidor se reconecta
+        return o;
     }
 
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         factory.setConnectionOptions(mqttConnectOptions());
+        factory.setPersistence(new org.eclipse.paho.client.mqttv3.persist.MemoryPersistence());
         return factory;
     }
 }

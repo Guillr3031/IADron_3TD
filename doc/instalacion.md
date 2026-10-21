@@ -3,7 +3,7 @@
 Guía paso a paso para dejar funcionando el backend Cloud API de IADron (Matrice 3TD + Dock 2) en un PC con Windows 10/11.
 Recoge todos los pasos y los problemas reales que han ido apareciendo. Para el plan de pruebas con el dron, ver `README_IADRON.md`.
 
-> Estado de esta guía: pasos 1–6 probados en Windows 10 (19045); paso 7 en curso.
+> Estado de esta guía: pasos 1–8 probados en Windows 10 (19045). Dock 2 conectado a la nube de terceros el 14/10/2026.
 
 ---
 
@@ -118,7 +118,13 @@ Resultado esperado:
 - `minio-bucket`, `minio-user`, `minio-policy` se ejecutan una vez y terminan (crean el bucket `cloud-bucket`, el usuario `iadron` y le dan permisos `readwrite`).
 - La primera vez tarda unos minutos (descarga de imágenes).
 
-La base de datos se inicializa sola la **primera vez** con `sql/cloud_sample.sql` (esquema de DJI) y `iadron/sql/02_iadron_seed.sql` (workspace "IADron Nave", bind code `IADRON01`).
+La base de datos se inicializa sola la **primera vez** con `sql/cloud_sample.sql` (esquema de DJI), `iadron/sql/02_iadron_seed.sql` (workspace "IADron Nave", bind code `IADRON01`) y `iadron/sql/03_iadron_workspace_id.sql` (renombra el workspace a `iadron-nave`, ver 8.3).
+En `docker-compose.yml`, el servicio de MySQL tiene que montar los tres:
+```yaml
+      - ../sql/cloud_sample.sql:/docker-entrypoint-initdb.d/01_cloud_sample.sql:ro
+      - ./sql/02_iadron_seed.sql:/docker-entrypoint-initdb.d/02_iadron_seed.sql:ro
+      - ./sql/03_iadron_workspace_id.sql:/docker-entrypoint-initdb.d/03_iadron_workspace_id.sql:ro
+```
 Para reiniciarla desde cero: `docker compose down -v` (borra también las fotos de MinIO).
 
 Comprobaciones en el navegador:
@@ -175,13 +181,14 @@ Terminal 1 (raíz del repo):
 python iadron\tools\servidor_central_mock.py --port 8090
 ```
 
-Terminal 2 (raíz del repo). PowerShell no tiene `source`; esto carga el `.env` en la sesión:
+Terminal 2 (raíz del repo):
 ```powershell
-Get-Content iadron\.env | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object { $k,$v = $_ -split '=',2; Set-Item "env:$($k.Trim())" $v.Trim() }
-java -jar (Get-ChildItem sample\target\sample-*.jar | Select-Object -First 1).FullName --spring.profiles.active=iadron
+.\iadron\arrancar_backend.ps1
 ```
+El script carga el `.env` (PowerShell no tiene `source`), avisa si `SERVER_IP` no coincide con la IP actual del PC y arranca el jar con `--mqtt.BASIC.host=127.0.0.1` (ver 7.3).
+Si PowerShell bloquea scripts: `powershell -ExecutionPolicy Bypass -File .\iadron\arrancar_backend.ps1`.
 
-Debe terminar con `Started CloudApiSampleApplication`.
+Debe terminar con `Started CloudApiSampleApplication` **y sin** errores `MqttException` después.
 
 ### Problemas encontrados
 
@@ -192,9 +199,19 @@ El `application.yml` de DJI trae textos de ejemplo ("Please enter the local port
 #### 7.2 IntelliJ: `Project JDK is not specified`
 *File → Project Structure → Project → SDK* = JDK 11+ (o *Add SDK → Download JDK…* → Temurin 17). En la pestaña Maven, ejecutar `clean` y `package`, **no** `deploy`.
 
+#### 7.3 `MqttException: Tiempo de espera excedido al esperar una respuesta del servidor`
+El backend no conecta con EMQX. En el demo de DJI, `mqtt.BASIC.host` sirve para dos cosas: la conexión del propio backend y la dirección que se entrega a Pilot 2 en `pilot-login`. Por eso vale `SERVER_IP`, y Docker Desktop en Windows a veces no responde cuando el propio PC se conecta a su IP de red (desde fuera, el Dock sí llega).
+→ Arrancar con `--mqtt.BASIC.host=127.0.0.1` (lo hace `arrancar_backend.ps1`).
+Limitación: así arrancado, el mando **no** puede entrar por `pilot-login` (recibiría `127.0.0.1`). Pendiente separar ambas direcciones en el código.
+Si aun así falla: `docker compose ps` (EMQX *Up*) y, si hace falta, *Quit Docker Desktop* → `wsl --shutdown` → abrir Docker → `docker compose up -d`.
+
+#### 7.4 La IP del PC cambia
+Al cambiar de red (cable de la empresa / Wi-Fi de invitados) o al día siguiente, la IPv4 puede cambiar. Hay que actualizar `SERVER_IP` en `iadron\.env`, `VITE_SERVER_IP` en `web\env\.env.local` **y la dirección MQTT del Dock** (paso 8), y reiniciar backend y web. Solución definitiva: IP fija/reservada para el PC o router propio.
+Los dispositivos solo se ven si están en **la misma red** que el PC (la Wi-Fi de invitados y la red de cable de la empresa están separadas).
+
 Comprobaciones:
 - Swagger: `http://localhost:6789/swagger-ui/index.html`
-- EMQX (`:18083` → *Clients*): aparece `iadron-backend`.
+- EMQX (`:18083` → *Clients*): aparecen dos clientes con usuario `JavaServer` (el backend; el Client ID es aleatorio).
 - Login por API:
   ```powershell
   Invoke-RestMethod -Method Post -Uri http://localhost:6789/manage/api/v1/login -ContentType 'application/json' -Body '{"username":"adminPC","password":"adminPC","flag":1}'
@@ -203,10 +220,57 @@ Comprobaciones:
 
 ---
 
-## 8. Pendiente
+## 8. Conectar el Dock 2 a la nube (IADron)
 
-- [ ] Frontend `dji-sdk/Cloud-API-Demo-Web`: configurar URL del backend (`http://SERVER_IP:6789`) y credenciales DJI, y servirlo en la red local. Necesario para Pilot 2 y para vincular el Dock.
-- [ ] Firewall de Windows: permitir entrada en 1883, 8083, 9000 y 6789 para que el Dock / RC Plus lleguen al PC.
+El Dock no usa `pilot-login`: se configura desde el mando conectado al Dock por cable.
+
+1. Backend arrancado y conectado a EMQX (en *Clients* salen los `JavaServer`). **Si el backend no está conectado, el Dock recibe "Invalid organization ID or device binding code" aunque los datos sean correctos.**
+2. Mando (RC Pro Enterprise) al Dock con cable **USB-A ↔ USB-C** → en Pilot 2 se abre **On-site Debugging**.
+3. Pulsar el nombre bajo la imagen del Dock → **Cloud Service Configuration** → *Cloud Service* = **Third-Party Cloud Service**.
+4. Rellenar:
+
+| Campo | Valor |
+|---|---|
+| MQTT gateway address | `tcp://SERVER_IP:1883` (p. ej. `tcp://10.12.54.211:1883`) |
+| MQTT account / password | `mqtt_username` / `mqtt_password` de `manage_user` (EMQX admite anónimos, pero mejor estas) |
+| Org ID | `iadron-nave` |
+| Binding code | `IADRON01` |
+
+5. *Continuar* → debe indicar que está conectado a la nube de terceros.
+6. Desconectar el mando y **reiniciar el Dock**.
+
+Comprobar: EMQX → *Clients* muestra un cliente con el **número de serie del Dock** como Client ID (p. ej. `7CTXM8S00B00YC`); web `:8080` → *Devices → Dock* lo muestra en *IADron Nave*; con el dron encendido en el Dock, el mock imprime `POSE DOCK_OSD gw=<SN del Dock>`.
+
+Consultas útiles:
+```powershell
+docker exec -it iadron_mysql mysql -uroot -proot cloud_sample -e "select workspace_id, workspace_name, bind_code from manage_workspace;"
+docker exec -it iadron_mysql mysql -uroot -proot cloud_sample -e "select username, mqtt_username, mqtt_password from manage_user;"
+```
+
+### Problemas encontrados
+
+#### 8.1 Timeout al pulsar *Continuar*
+- Puerto equivocado: **18083 es el panel web de EMQX**; los dispositivos van por el **1883**.
+- El Dock no está en la misma red que el PC, o el firewall bloquea el 1883.
+
+#### 8.2 `Invalid organization ID or device binding code`
+- El backend no está conectado a EMQX (7.3): nadie responde al Dock.
+- Org ID o código mal escritos (p. ej. `IADRON1` en vez de `IADRON01`). Se comparan exactos.
+
+#### 8.3 El campo Org ID corta el `workspace_id`
+El UUID del demo (`e3dea0f5-37f2-4d79-ae58-490af3228069`) no cabe en el campo de Pilot 2. Se renombró a `iadron-nave` en todas las tablas (`03_iadron_workspace_id.sql`). En una base de datos ya creada se aplica con:
+```powershell
+Get-Content iadron\sql\03_iadron_workspace_id.sql | docker exec -i iadron_mysql mysql -uroot -proot
+docker exec iadron_redis redis-cli flushall
+```
+Después: reiniciar el backend y, en la web, cerrar sesión y volver a entrar (el token llevaba el workspace antiguo).
+
+---
+
+## 9. Pendiente
+
+- [ ] Separar en el código la dirección MQTT del backend (`127.0.0.1`) de la que se entrega a los dispositivos (`SERVER_IP`), para poder usar `pilot-login` con el mando sin el parámetro de arranque.
+- [ ] IP fija/reservada para el PC en la red de pruebas (si cambia, hay que reconfigurar el Dock).
 - [ ] Prueba 1 (RC Plus + Pilot 2) y siguientes: ver `README_IADRON.md`.
 - [ ] Migrar al PC servidor Linux cuando esté disponible (allí Docker no necesita WSL; `set -a; source iadron/.env; set +a` para cargar variables).
 
@@ -222,4 +286,6 @@ Comprobaciones:
 | MinIO root | `minioadmin` | `minioadmin` |
 | MinIO app (backend) | `iadron` | `iadron-minio-123` |
 | MySQL | `root` | `root` |
+| Workspace (Org ID del Dock) | `iadron-nave` | — |
 | Workspace bind code | — | `IADRON01` |
+| MQTT backend | `JavaServer` | `123456` |

@@ -66,7 +66,10 @@ public enum DeviceTypeEnum {
 
     M3TD_CAMERA(81),
 
-    // IADron: tipos que el firmware actual manda y el SDK del demo no conoce (p. ej. 176).
+    // IADron: cámara FPV de la serie M3D (firmware 17.x)
+    M3D_FPV(176),
+
+    // IADron: tipos que el firmware actual manda y el SDK del demo no conoce.
     UNKNOWN(-1),
     ;
 
@@ -83,7 +86,7 @@ public enum DeviceTypeEnum {
 
     @JsonCreator
     public static DeviceTypeEnum find(int type) {
-        // IADron: antes lanzaba excepción y se perdía el mensaje entero (p. ej. state del dron con tipo 176).
+        // IADron: antes lanzaba excepción y se perdía el mensaje entero.
         return Arrays.stream(values()).filter(typeEnum -> typeEnum.type == type).findAny()
                 .orElse(UNKNOWN);
     }

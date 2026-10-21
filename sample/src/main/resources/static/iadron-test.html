@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IADron · Prueba de vuelo</title>
+    <style>
+        :root { --bg:#16181d; --panel:#20232a; --line:#333843; --txt:#e6e8ec; --mut:#9aa1ad; --ok:#3ecf8e; --err:#ff6b6b; --acc:#4b8cff; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.45 system-ui, sans-serif; }
+        main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:320px 1fr; }
+        @media (max-width:800px){ main { grid-template-columns:1fr; } }
+        section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+        h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 10px; }
+        label { display:block; color:var(--mut); font-size:12px; margin:8px 0 2px; }
+        input { width:100%; padding:6px 8px; background:#111317; color:var(--txt); border:1px solid var(--line); border-radius:5px; }
+        button { width:100%; margin-top:10px; padding:10px; border:0; border-radius:6px; background:#2e3440; color:var(--txt); font-weight:600; cursor:pointer; }
+        button.primary { background:var(--acc); } button.danger { background:#7a2e2e; }
+        button:disabled { opacity:.5; }
+        .auto { display:flex; align-items:center; gap:8px; margin-top:10px; }
+        .auto input[type=checkbox] { width:auto; } .auto label { margin:0; }
+        pre { margin:0; white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace, Consolas, monospace; }
+        #log { max-height:300px; overflow:auto; }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        th, td { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
+        th { color:var(--mut); font-weight:500; }
+        .s-ok { color:var(--ok); } .s-err { color:var(--err); } .s-info { color:var(--acc); }
+        .s-warn { color:#f5b84b; }
+        .chk { display:flex; gap:8px; padding:4px 0; font-size:12px; border-bottom:1px solid var(--line); }
+        .chk .dot { flex:0 0 8px; height:8px; margin-top:5px; border-radius:50%; }
+        .chk b { font-weight:600; } .chk span { color:var(--mut); }
+        #ready { font-weight:700; margin-bottom:6px; }
+    </style>
+</head>
+<body>
+<main>
+    <div style="display:grid; gap:16px; align-content:start">
+        <section>
+            <h2>Comprobación antes de volar</h2>
+            <div id="ready" style="color:var(--mut)">Comprobando…</div>
+            <div id="checks"></div>
+            <button onclick="health()">Comprobar ahora</button>
+            <button onclick="reconnectDock()">Reconectar Dock</button>
+        </section>
+        <section>
+            <h2>Despegue</h2>
+            <label>Altura sobre el Dock (m)</label><input id="h" value="2">
+            <button class="danger" onclick="takeoff()">DESPEGAR</button>
+        </section>
+        <section>
+            <h2>Foto térmica</h2>
+            <button class="primary" id="shot" onclick="photo()">Hacer foto</button>
+            <div class="auto"><input type="checkbox" id="auto" onchange="toggleAuto()"><label for="auto">Repetir cada</label>
+                <input id="every" value="3" style="width:60px"> s</div>
+        </section>
+        <section>
+            <h2>Tiempo real (vídeo → IA)</h2>
+            <label>Vídeo RTSP (vacío = el del yml)</label>
+            <input id="rtsp" placeholder="rtsp://localhost:8554/live/1581F6Q8D247300G9889-81-0-0">
+            <button class="primary" onclick="liveStart()">Iniciar envío en vivo</button>
+            <button onclick="liveStop()">Detener</button>
+            <div id="live" style="margin-top:8px"></div>
+        </section>
+        <section>
+            <h2>Volver</h2>
+            <button onclick="rth()">Return Home</button>
+        </section>
+    </div>
+
+    <div style="display:grid; gap:16px; align-content:start">
+        <section>
+            <h2>Fotos recibidas</h2>
+            <table><thead><tr><th>Hora</th><th>Fichero</th><th>Estado</th><th>Detalle</th></tr></thead>
+                <tbody id="events"><tr><td colspan="4" style="color:var(--mut)">Aún no ha llegado ninguna foto.</td></tr></tbody></table>
+        </section>
+        <section>
+            <h2>Respuestas</h2>
+            <div id="log"></div>
+        </section>
+    </div>
+</main>
+
+<script>
+    const DOCK = '7CTXM8S00B00YC';
+    let token = null, autoTimer = null;
+    const $ = id => document.getElementById(id);
+
+    function log(title, data, ok) {
+        const div = document.createElement('div');
+        div.style.marginBottom = '10px';
+        div.innerHTML = `<b class="${ok ? 's-ok' : 's-err'}">${new Date().toLocaleTimeString()} · ${title}</b><pre></pre>`;
+        div.querySelector('pre').textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        $('log').prepend(div);
+    }
+
+    async function call(method, url) {
+        if (!token) {
+            const r = await fetch('/manage/api/v1/login', { method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ username:'adminPC', password:'adminPC', flag:1 }) });
+            token = (await r.json()).data.access_token;
+        }
+        const r = await fetch(url, { method, headers:{ 'x-auth-token': token } });
+        const text = await r.text();
+        try { return JSON.parse(text); } catch { return text || ('HTTP ' + r.status); }
+    }
+
+    async function takeoff() {
+        const h = parseFloat($('h').value);
+        if (!(h >= 2)) { alert('Altura mínima 2 m'); return; }
+        if (!confirm(`El dron va a despegar de verdad a ${h} m sobre el Dock. ¿Continuar?`)) return;
+        try {
+            const r = await call('POST', `/iadron/api/v1/ia/takeoff?dock=${DOCK}&height=${h}`);
+            log('Despegue', r, r && r.ok);
+        } catch (e) { log('Despegue', String(e), false); }
+    }
+
+    async function photo() {
+        $('shot').disabled = true;
+        try {
+            const r = await call('POST', `/iadron/api/v1/ia/photo?dock=${DOCK}`);
+            log('Foto', r, r && r.ok);
+        } catch (e) { log('Foto', String(e), false); }
+        $('shot').disabled = false;
+    }
+
+    function toggleAuto() {
+        clearInterval(autoTimer);
+        if ($('auto').checked) {
+            photo();
+            autoTimer = setInterval(photo, Math.max(1, parseFloat($('every').value) || 3) * 1000);
+        }
+    }
+
+    async function rth() {
+        $('auto').checked = false; clearInterval(autoTimer);
+        try {
+            const r = await call('POST', `/control/api/v1/devices/${DOCK}/jobs/return_home`);
+            log('Return Home', r, r && r.code === 0);
+        } catch (e) { log('Return Home', String(e), false); }
+    }
+
+    function detail(d) {
+        if (d == null || typeof d !== 'object') return d == null ? '' : String(d);
+        const p = [];
+        if (d.disparoHastaEnvioMs != null) p.push(`disparo→IA ${d.disparoHastaEnvioMs} ms`);
+        if (d.httpStatus != null) p.push(`HTTP ${d.httpStatus}`);
+        try { const j = JSON.parse(d.respuestaIa); if (j.tempMaxC != null) p.push(`${j.tempMinC.toFixed(1)}–${j.tempMaxC.toFixed(1)} ºC`); } catch {}
+        return p.join(' · ');
+    }
+
+    async function refresh() {
+        try {
+            const list = await (await fetch('/iadron/api/v1/ia/events')).json();
+            if (!list.length) return;
+            const body = $('events'); body.innerHTML = '';
+            list.forEach(e => {
+                const tr = document.createElement('tr');
+                const cls = e.status === 'ERROR' ? 's-err' : e.status === 'enviada a la IA' ? 's-ok' : 's-info';
+                [new Date(e.at).toLocaleTimeString(), e.file, e.status, detail(e.detail)].forEach((v, i) => {
+                    const td = document.createElement('td'); td.textContent = v; if (i === 2) td.className = cls; tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+        } catch {}
+    }
+    async function health() {
+        try {
+            const r = await call('GET', `/iadron/api/v1/health?dock=${DOCK}`);
+            if (!r || !r.checks) { $('ready').textContent = 'Sin respuesta del servidor'; $('ready').style.color = 'var(--err)'; return; }
+            $('ready').textContent = r.ready ? 'LISTO PARA VOLAR' : 'NO VOLAR: revisa lo que está en rojo';
+            $('ready').style.color = r.ready ? 'var(--ok)' : 'var(--err)';
+            const box = $('checks'); box.innerHTML = '';
+            r.checks.forEach(c => {
+                const color = c.status === 'OK' ? 'var(--ok)' : c.status === 'WARN' ? '#f5b84b' : 'var(--err)';
+                const row = document.createElement('div'); row.className = 'chk';
+                const dot = document.createElement('div'); dot.className = 'dot'; dot.style.background = color;
+                const txt = document.createElement('div');
+                const b = document.createElement('b'); b.textContent = c.name + ' ';
+                const sp = document.createElement('span'); sp.textContent = c.detail;
+                txt.append(b, sp); row.append(dot, txt); box.appendChild(row);
+            });
+        } catch (e) { $('ready').textContent = 'Servidor caído o sin acceso: ' + e; $('ready').style.color = 'var(--err)'; }
+    }
+
+    async function reconnectDock() {
+        try {
+            const r = await call('POST', `/iadron/api/v1/health/reconnect-dock?dock=${DOCK}`);
+            log('Reconectar Dock', r, r && r.ok);
+            setTimeout(health, 8000);
+        } catch (e) { log('Reconectar Dock', String(e), false); }
+    }
+
+    setInterval(refresh, 2000); refresh();
+    setInterval(health, 10000); health();
+
+    async function liveStart() {
+        try {
+            const q = new URLSearchParams({ dock: DOCK });
+            const u = $('rtsp').value.trim(); if (u) q.set('rtsp', u);
+            const r = await call('POST', `/iadron/api/v1/live/start?${q}`);
+            log('Tiempo real: iniciar', r, r && r.running);
+            liveStatus();
+        } catch (e) { log('Tiempo real: iniciar', String(e), false); }
+    }
+
+    async function liveStop() {
+        try {
+            const r = await call('POST', '/iadron/api/v1/live/stop');
+            log('Tiempo real: detener', r, true);
+            liveStatus();
+        } catch (e) { log('Tiempo real: detener', String(e), false); }
+    }
+
+    async function liveStatus() {
+        try {
+            const r = await call('GET', '/iadron/api/v1/live/status');
+            if (!r || r.running === undefined) return;
+            const lf = r.lastFrame || {};
+            const rows = [
+                ['Estado', r.running ? 'ENVIANDO' : 'parado', r.running ? 'var(--ok)' : 'var(--mut)'],
+                ['Fotogramas', `${r.framesSent} enviados · ${r.framesRead} leídos · ${r.framesSkipped} descartados`],
+                ['Temperatura', lf.tempMaxC != null ? `${lf.tempMinC.toFixed(1)} – ${lf.tempMaxC.toFixed(1)} ºC (${lf.temperatureSource})` : '—'],
+                ['Retraso imagen → IA', lf.captureToIaMs != null ? `${lf.captureToIaMs} ms` : '—'],
+                ['Telemetría', r.telemetryConnected ? (r.lastTemperatureAgoMs != null ? `temperatura hace ${r.lastTemperatureAgoMs} ms` : 'conectada, sin temperatura aún') : 'desconectada', r.telemetryConnected ? null : 'var(--err)'],
+                ['Medición', r.metering || '—'],
+                ['Último error', r.lastError || '—', r.lastError ? '#f5b84b' : null],
+            ];
+            const box = $('live'); box.innerHTML = '';
+            rows.forEach(([k, v, c]) => {
+                const d = document.createElement('div'); d.className = 'chk';
+                const b = document.createElement('b'); b.textContent = k + ' ';
+                const sp = document.createElement('span'); sp.textContent = v; if (c) sp.style.color = c;
+                const t = document.createElement('div'); t.append(b, sp); d.append(t); box.appendChild(d);
+            });
+        } catch {}
+    }
+    setInterval(liveStatus, 2000); liveStatus();
+</script>
+</body>
+</html>

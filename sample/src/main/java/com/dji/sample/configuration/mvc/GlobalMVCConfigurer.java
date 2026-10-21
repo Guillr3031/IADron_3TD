@@ -30,6 +30,8 @@ public class GlobalMVCConfigurer implements WebMvcConfigurer {
         // Exclude the login interface.
         excludePaths.add("/" + managePrefix + manageVersion + "/login");
         excludePaths.add("/" + managePrefix + manageVersion + "/token/refresh");
+        excludePaths.add("/iadron/api/v1/ia/**");
+        excludePaths.add("/iadron-test.html");
         excludePaths.add("/swagger-ui.html");
         excludePaths.add("/swagger-ui/**");
         excludePaths.add("/v3/**");

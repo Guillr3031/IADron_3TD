@@ -15,7 +15,7 @@ import javax.validation.constraints.NotNull;
 public class RthAltitudeSet extends BaseModel {
 
     @NotNull
-    @Min(20)
+    @Min(3)
     @Max(50)
     @JsonProperty("rth_altitude")
     private Integer rthAltitude;

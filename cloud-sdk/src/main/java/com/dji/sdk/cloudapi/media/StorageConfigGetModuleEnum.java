@@ -13,7 +13,12 @@ import java.util.Arrays;
  */
 public enum StorageConfigGetModuleEnum {
 
-    MEDIA(0);
+    MEDIA(0),
+
+    PSDK_UI(1),
+
+    UNKNOWN(-1);
+
 
     private final int module;
 
@@ -26,9 +31,14 @@ public enum StorageConfigGetModuleEnum {
         return module;
     }
 
-    @JsonCreator
-    public StorageConfigGetModuleEnum find(int module) {
-        return Arrays.stream(values()).filter(moduleEnum -> moduleEnum.module == module).findAny()
-                .orElseThrow(() -> new CloudSDKException(StorageConfigGetModuleEnum.class, module));
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+    public static StorageConfigGetModuleEnum find(Object value) {
+        int m;
+        try{
+            m = Integer.parseInt(String.valueOf(value).trim());
+        }catch (NumberFormatException e){
+            return UNKNOWN;
+        }
+        return Arrays.stream(values()).filter(x ->x.module == m).findAny().orElse(UNKNOWN);
     }
 }

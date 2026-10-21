@@ -76,6 +76,9 @@ public enum DeviceEnum {
     M3D_CAMERA(DeviceDomainEnum.PAYLOAD, DeviceTypeEnum.M3D_CAMERA, DeviceSubTypeEnum.ZERO),
 
     M3TD_CAMERA(DeviceDomainEnum.PAYLOAD, DeviceTypeEnum.M3TD_CAMERA, DeviceSubTypeEnum.ZERO),
+
+    // IADron: cámara FPV de la serie M3D (firmware 17.x)
+    M3D_FPV(DeviceDomainEnum.PAYLOAD, DeviceTypeEnum.M3D_FPV, DeviceSubTypeEnum.ZERO),
     ;
 
     @Schema(enumAsRef = true)
@@ -116,7 +119,7 @@ public enum DeviceEnum {
 
     public static DeviceEnum find(int domain, int type, int subType) {
         return Arrays.stream(values()).filter(device -> device.domain.getDomain() == domain &&
-                device.type.getType() == type && device.subType.getSubType() == subType)
+                        device.type.getType() == type && device.subType.getSubType() == subType)
                 .findAny().orElseThrow(() -> new CloudSDKException(DeviceEnum.class,
                         String.format("%s-%s-%s", domain, type, subType)));
     }

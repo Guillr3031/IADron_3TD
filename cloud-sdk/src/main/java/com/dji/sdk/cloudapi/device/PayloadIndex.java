@@ -31,7 +31,8 @@ public class PayloadIndex {
     @JsonCreator
     public PayloadIndex(String payloadIndex) {
         Objects.requireNonNull(payloadIndex);
-        int[] payloadIndexArr = Arrays.stream(payloadIndex.split("-")).mapToInt(Integer::parseInt).toArray();
+        // IADron: separa solo por los guiones que van tras un dígito, para admitir "-1-0-0" (tipo UNKNOWN).
+        int[] payloadIndexArr = Arrays.stream(payloadIndex.split("(?<=\\d)-")).mapToInt(Integer::parseInt).toArray();
         if (payloadIndexArr.length != 3) {
             throw new CloudSDKException(CloudSDKErrorEnum.INVALID_PARAMETER);
         }
