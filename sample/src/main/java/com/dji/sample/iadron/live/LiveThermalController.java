@@ -9,6 +9,7 @@ import java.util.Map;
  *  POST /iadron/api/v1/live/start?rtsp=...   (rtsp opcional: por defecto el de application-iadron.yml)
  *  POST /iadron/api/v1/live/stop
  *  GET  /iadron/api/v1/live/status
+ *  GET  /iadron/api/v1/live/captures   (últimas capturas guardadas en MinIO)
  */
 @RestController
 @RequestMapping("/iadron/api/v1/live")
@@ -30,6 +31,12 @@ public class LiveThermalController {
     @PostMapping("/stop")
     public Map<String, Object> stop() {
         return live.stop();
+    }
+
+    /** Últimas capturas en vivo guardadas en MinIO */
+    @GetMapping("/captures")
+    public java.util.List<Map<String, Object>> captures(@RequestParam(defaultValue = "12") int limit) {
+        return live.recentCaptures(limit);
     }
 
     @GetMapping("/status")

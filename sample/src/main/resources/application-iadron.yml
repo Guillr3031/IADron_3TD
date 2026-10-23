@@ -94,7 +94,7 @@ iadron:
   emqx:
     api-url: http://localhost:18083/api/v4
     api-user: admin
-    api-password: public
+    api-password: admin123
     auto-reconnect: false
     docks: 7CTXM8S00B00YC
     drone: 1581F6Q8D247300G9889
@@ -127,7 +127,7 @@ iadron:
     payload: ${IA_PAYLOAD:THERMAL_IMAGE}     # RJPEG = enviar el fichero tal cual, como antes
     irp-path: ${IA_IRP_PATH:C:/Users/BEC/IdeaProjects/Thermal_SDK/utility/bin/windows/release_x64/dji_irp.exe}
   live:
-    ffmpeg-path: ffmpeg
+    ffmpeg-path: C:/Users/BEC/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe
     rtsp-url: rtsp://localhost:8554/live/1581F6Q8D247300G9889-81-0-0
     fps: 1
     video-delay-ms: 1500

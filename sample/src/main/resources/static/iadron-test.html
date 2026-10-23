@@ -30,6 +30,12 @@
         .chk .dot { flex:0 0 8px; height:8px; margin-top:5px; border-radius:50%; }
         .chk b { font-weight:600; } .chk span { color:var(--mut); }
         #ready { font-weight:700; margin-bottom:6px; }
+        .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px; }
+        .gallery figure { margin:0; background:#111317; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+        .gallery img { width:100%; aspect-ratio:640/512; object-fit:cover; display:block; background:#000; }
+        .gallery figcaption { padding:6px; font-size:11px; color:var(--mut); }
+        .gallery figcaption b { color:var(--txt); }
+        .gallery a { color:var(--acc); }
     </style>
 </head>
 <body>
@@ -68,6 +74,10 @@
     </div>
 
     <div style="display:grid; gap:16px; align-content:start">
+        <section>
+            <h2>Capturas en vivo (guardadas en MinIO)</h2>
+            <div id="gallery" class="gallery"><span style="color:var(--mut)">Aún no hay capturas. Inicia el envío en vivo.</span></div>
+        </section>
         <section>
             <h2>Fotos recibidas</h2>
             <table><thead><tr><th>Hora</th><th>Fichero</th><th>Estado</th><th>Detalle</th></tr></thead>
@@ -223,6 +233,7 @@
                 ['Retraso imagen → IA', lf.captureToIaMs != null ? `${lf.captureToIaMs} ms` : '—'],
                 ['Telemetría', r.telemetryConnected ? (r.lastTemperatureAgoMs != null ? `temperatura hace ${r.lastTemperatureAgoMs} ms` : 'conectada, sin temperatura aún') : 'desconectada', r.telemetryConnected ? null : 'var(--err)'],
                 ['Medición', r.metering || '—'],
+                ['Guardado en MinIO', r.saveMinio || 'desactivado (iadron.live.save-minio: false)'],
                 ['Último error', r.lastError || '—', r.lastError ? '#f5b84b' : null],
             ];
             const box = $('live'); box.innerHTML = '';
@@ -235,6 +246,34 @@
         } catch {}
     }
     setInterval(liveStatus, 2000); liveStatus();
+
+    async function gallery() {
+        try {
+            const list = await call('GET', '/iadron/api/v1/live/captures?limit=12');
+            if (!Array.isArray(list) || !list.length) return;
+            const box = $('gallery'); box.innerHTML = '';
+            list.forEach(c => {
+                const fig = document.createElement('figure');
+                if (c.pngUrl) {
+                    const a = document.createElement('a'); a.href = c.pngUrl; a.target = '_blank';
+                    const img = document.createElement('img'); img.src = c.pngUrl; img.alt = 'captura térmica';
+                    a.appendChild(img); fig.appendChild(a);
+                }
+                const cap = document.createElement('figcaption');
+                const t = document.createElement('b');
+                t.textContent = new Date(c.at).toLocaleTimeString() + ' ';
+                const temps = document.createElement('span');
+                temps.textContent = c.tempMaxC != null
+                    ? `${c.tempMinC.toFixed(1)}–${c.tempMaxC.toFixed(1)} ºC · HTTP ${c.httpStatus} `
+                    : 'sin temperatura · no enviada a la IA ';
+                if (c.tempMaxC == null) temps.style.color = '#f5b84b';
+                cap.append(t, temps);
+                if (c.tiUrl) { const d = document.createElement('a'); d.href = c.tiUrl; d.textContent = '.ti'; cap.appendChild(d); }
+                fig.appendChild(cap); box.appendChild(fig);
+            });
+        } catch {}
+    }
+    setInterval(gallery, 3000); gallery();
 </script>
 </body>
 </html>
