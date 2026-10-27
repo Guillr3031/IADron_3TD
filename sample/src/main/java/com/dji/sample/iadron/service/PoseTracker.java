@@ -4,6 +4,7 @@ import com.dji.sample.iadron.config.IadronProperties;
 import com.dji.sample.iadron.model.CaptureEvent;
 import com.dji.sample.iadron.model.DronePose;
 import com.dji.sample.iadron.model.PositioningStatus;
+import com.dji.sample.iadron.thermal.ThermalForwarder;
 import com.dji.sample.manage.model.dto.DeviceDTO;
 import com.dji.sample.manage.service.IDeviceRedisService;
 import com.dji.sdk.cloudapi.control.OsdInfoPush;
@@ -57,6 +58,9 @@ public class PoseTracker {
 
     @Autowired
     private ObjectMapper mapper;
+
+    @Autowired
+    private ThermalForwarder thermalForwarder;
 
     private final Map<String, DronePose> latestByGateway = new ConcurrentHashMap<>();
     private final Map<String, DronePose> latestByDrone = new ConcurrentHashMap<>();
@@ -172,6 +176,8 @@ public class PoseTracker {
         capture.setPoseAtUpload(pose);
         writeLog("capture", capture);
         publisher.publishCapture(capture);
+        // IADron: las térmicas se convierten a "A|base64 TI" y se mandan a la IA (en su propio hilo).
+        thermalForwarder.onCapture(capture);
     }
 
     /** Eventos DRC sueltos (acks, retardo de enlace, parada de emergencia) para el log de vuelo. */

@@ -26,6 +26,8 @@ public class IadronProperties {
     /** Control relativo por DRC (equivalente al Virtual Stick del MSDK). */
     private Drc drc = new Drc();
 
+    private Thermal thermal = new Thermal();
+
     @Data
     public static class Forward {
         /** Si está vacío, no se reenvía nada (solo log local). Ej: http://192.168.1.50:8080 */
@@ -49,12 +51,6 @@ public class IadronProperties {
     public static class Gnss {
         /** Satélites mínimos para considerar el GNSS utilizable. */
         private int minSatellites = 8;
-        /**
-         * Qué hacer con comandos que dependen de lat/lon (takeoff-to-point, fly-to-point)
-         * cuando el GNSS no es utilizable:
-         * WARN  = registrar aviso y enviar igualmente (útil para probar qué responde el Dock).
-         * BLOCK = rechazar el comando antes de enviarlo.
-         */
         private GuardMode guardMode = GuardMode.WARN;
     }
 
@@ -76,5 +72,30 @@ public class IadronProperties {
         private float maxYawRate = 30f;
         /** clientId con el que el backend entra en modo DRC (sin navegador). */
         private String serverClientId = "iadron-server";
+    }
+
+    @Data
+    public static class Thermal {
+        private boolean enabled = true;
+        private String irpPath = "";
+        private long irpTimeoutMs = 10000;
+        private Double emissivity;
+        private Double distance;
+        private String iaUrl = "";
+        private int iaTimeoutMs = 5000;
+        private String messagePrefix = "A";
+        private Replay replay = new Replay();
+        /** http o tcp */
+        private String transport = "http";
+        private String tcpHost = "127.0.0.1";
+        private int tcpPort = 9000;
+        private String tcpFraming = "NEWLINE";
+    }
+
+    @Data
+    public static class Replay {
+        private boolean enabled = false;
+        private String dir = "";
+        private long intervalMs = 3000;
     }
 }
