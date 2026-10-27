@@ -119,6 +119,21 @@ iadron:
     max-vertical-speed: 0.5
     max-yaw-rate: 30
     server-client-id: iadron-server
+  thermal:
+    enabled: true
+    irp-path: ${IADRON_IRP_PATH:C:/dji_thermal_sdk/utility/bin/windows/release_x64/dji_irp.exe}
+    irp-timeout-ms: 10000
+    ia-url: ${IADRON_IA_URL:http://localhost:8090/api/ia/thermal}
+    ia-timeout-ms: 5000
+    message-prefix: A
+    transport: ${IADRON_IA_TRANSPORT:tcp}
+    tcp-host: ${IADRON_IA_HOST:127.0.0.1}
+    tcp-port: ${IADRON_IA_PORT:9000}
+    tcp-framing: ${IADRON_IA_FRAMING:NEWLINE}
+    replay:
+      enabled: ${IADRON_REPLAY:false}
+      dir: ${IADRON_REPLAY_DIR:C:/iadron/dataset_m3td}
+      interval-ms: 3000
   ia:
     enabled: ${IA_ENABLED:true}
     url: ${IA_URL:http://localhost:6789/iadron/api/v1/ia/mock}   # de momento, la IA falsa
