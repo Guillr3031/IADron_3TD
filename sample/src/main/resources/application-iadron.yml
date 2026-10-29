@@ -95,7 +95,7 @@ iadron:
     api-url: http://localhost:18083/api/v4
     api-user: admin
     api-password: admin123
-    auto-reconnect: false
+    auto-reconnect: true
     docks: 7CTXM8S00B00YC
     drone: 1581F6Q8D247300G9889
   forward:
@@ -128,7 +128,7 @@ iadron:
     message-prefix: A
     transport: ${IADRON_IA_TRANSPORT:tcp}
     tcp-host: ${IADRON_IA_HOST:127.0.0.1}
-    tcp-port: ${IADRON_IA_PORT:9000}
+    tcp-port: ${IADRON_IA_PORT:5555}
     tcp-framing: ${IADRON_IA_FRAMING:NEWLINE}
     replay:
       enabled: ${IADRON_REPLAY:false}

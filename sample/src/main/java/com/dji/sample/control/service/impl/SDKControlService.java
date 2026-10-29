@@ -17,6 +17,7 @@ import com.dji.sdk.mqtt.drc.TopicDrcRequest;
 import com.dji.sdk.mqtt.events.TopicEventsRequest;
 import com.dji.sdk.mqtt.events.TopicEventsResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dji.sample.iadron.nav.HsiTracker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.mqtt.support.MqttHeaders;
@@ -44,9 +45,11 @@ public class SDKControlService extends AbstractControlService {
     private ObjectMapper mapper;
 
     // IADron: telemetría DRC de alta frecuencia y estado del enlace.
-    // (Sin dependencia de DrcSessionService para evitar ciclos de beans.)
     @Autowired
     private PoseTracker poseTracker;
+
+    @Autowired
+    private HsiTracker hsiTracker;
 
     @Autowired
     private DrcLinkMonitor drcLinkMonitor;
@@ -168,8 +171,7 @@ public class SDKControlService extends AbstractControlService {
 
     @Override
     public void hsiInfoPush(TopicDrcRequest<HsiInfoPush> request, MessageHeaders headers) {
-        // Distancias a obstáculos alrededor del dron (sensores de visión). Se guardan en el log de vuelo:
-        // útiles en interior para ver cuánto margen deja la evitación de obstáculos.
+        hsiTracker.update(dockSnFromTopic(headers), request.getData());
         poseTracker.logDrcEvent(dockSnFromTopic(headers), "hsi_info_push", request.getData());
     }
 

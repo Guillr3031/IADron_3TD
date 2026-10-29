@@ -88,7 +88,7 @@ public class IadronProperties {
         /** http o tcp */
         private String transport = "http";
         private String tcpHost = "127.0.0.1";
-        private int tcpPort = 9000;
+        private int tcpPort = 5555;
         private String tcpFraming = "NEWLINE";
     }
 

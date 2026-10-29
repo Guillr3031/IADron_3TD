@@ -89,7 +89,7 @@ public class IaPhotoTestController {
         p.setCommanderFlightHeight((float) height);
         p.setCommanderFlightMode(CommanderFlightModeEnum.SETTING_HEIGHT);
         p.setRthMode(RthModeEnum.PRESET_HEIGHT);
-        p.setRcLostAction(RcLostActionEnum.RETURN_HOME);
+        p.setRcLostAction(RcLostActionEnum.HOVER);
         p.setExitWaylineWhenRcLost(ExitWaylineWhenRcLostEnum.EXECUTE_RC_LOST_ACTION);
         p.setCommanderModeLostAction(CommanderModeLostActionEnum.EXECUTE_RC_LOST_ACTION);
         p.setMaxSpeed(maxSpeed);

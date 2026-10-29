@@ -92,7 +92,7 @@ public class HsiInfoPush {
         this.downDistance = downDistance;
         return this;
     }
-
+    @com.fasterxml.jackson.annotation.JsonAlias({"around_distances", "around_distance"})
     public List<Integer> getAroundDistance() {
         return aroundDistance;
     }

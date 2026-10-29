@@ -183,7 +183,7 @@ public class DrcServiceImpl implements IDrcService {
                                         .pub(List.of(subTopic))
                                         .sub(List.of(pubTopic))
                                         .build(), new TypeReference<Map<String, ?>>() {}))))
-                        .setHsiFrequency(1).setOsdFrequency(10));
+                        .setHsiFrequency(10).setOsdFrequency(10));
 
         if (!reply.getData().getResult().isSuccess()) {
             throw new RuntimeException("SN: " + param.getDockSn() + "; Error:" + reply.getData().getResult() +

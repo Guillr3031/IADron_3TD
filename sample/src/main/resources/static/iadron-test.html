@@ -5,90 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>IADron · Prueba de vuelo</title>
     <style>
-        :root { --bg:#16181d; --panel:#20232a; --line:#333843; --txt:#e6e8ec; --mut:#9aa1ad; --ok:#3ecf8e; --err:#ff6b6b; --acc:#4b8cff; }
+        :root { --bg:#16181d; --panel:#20232a; --line:#333843; --txt:#e6e8ec; --mut:#9aa1ad; --ok:#3ecf8e; --err:#ff6b6b; --acc:#4b8cff; --warn:#f5b84b; }
         * { box-sizing:border-box; }
-        body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.45 system-ui, sans-serif; }
-        main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:320px 1fr; }
-        @media (max-width:800px){ main { grid-template-columns:1fr; } }
-        section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
-        h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 10px; }
-        label { display:block; color:var(--mut); font-size:12px; margin:8px 0 2px; }
-        input { width:100%; padding:6px 8px; background:#111317; color:var(--txt); border:1px solid var(--line); border-radius:5px; }
-        button { width:100%; margin-top:10px; padding:10px; border:0; border-radius:6px; background:#2e3440; color:var(--txt); font-weight:600; cursor:pointer; }
-        button.primary { background:var(--acc); } button.danger { background:#7a2e2e; }
+        html, body { height:100%; }
+        body { margin:0; background:var(--bg); color:var(--txt); font:13px/1.4 system-ui, sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+        header { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+        header h1 { font-size:14px; margin:0; }
+        #ready { font-weight:700; font-size:12px; color:var(--mut); }
+        header .sp { flex:1; }
+        header button { width:auto; margin:0; padding:7px 14px; }
+        .tabs { display:flex; gap:2px; padding:0 12px; border-bottom:1px solid var(--line); }
+        .tabs button { width:auto; margin:0; padding:8px 14px; background:none; border-radius:0; color:var(--mut); border-bottom:2px solid transparent; }
+        .tabs button.on { color:var(--txt); border-bottom-color:var(--acc); }
+        #last { padding:4px 12px; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--mut); }
+        .pane { display:none; flex:1; min-height:0; padding:10px 12px 12px; gap:10px; grid-template-columns:330px 1fr; }
+        .pane.on { display:grid; }
+        .pane.single { grid-template-columns:1fr; }
+        @media (max-width:800px){ .pane { grid-template-columns:1fr; overflow:auto; } body { overflow:auto; } }
+        .col { display:flex; flex-direction:column; gap:10px; min-height:0; }
+        section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+        section.grow { flex:1; min-height:0; overflow:auto; }
+        h2 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 8px; }
+        label { display:block; color:var(--mut); font-size:11px; margin:0 0 2px; }
+        input { width:100%; padding:5px 7px; background:#111317; color:var(--txt); border:1px solid var(--line); border-radius:5px; }
+        button { width:100%; margin-top:8px; padding:8px; border:0; border-radius:6px; background:#2e3440; color:var(--txt); font-weight:600; cursor:pointer; }
+        button.primary { background:var(--acc); } button.danger { background:#7a2e2e; } button.stop { background:#b33a3a; } button.land { background:#a0712a; }
         button:disabled { opacity:.5; }
-        .auto { display:flex; align-items:center; gap:8px; margin-top:10px; }
-        .auto input[type=checkbox] { width:auto; } .auto label { margin:0; }
+        .inline { display:flex; gap:8px; align-items:flex-end; } .inline > div { flex:1; } .inline button { width:auto; margin:0; white-space:nowrap; }
+        .xyz { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+        .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .auto { display:flex; align-items:center; gap:8px; margin-top:8px; }
+        .auto input[type=checkbox] { width:auto; } .auto label { margin:0; font-size:12px; }
         pre { margin:0; white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace, Consolas, monospace; }
-        #log { max-height:300px; overflow:auto; }
         table { width:100%; border-collapse:collapse; font-size:12px; }
-        th, td { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
-        th { color:var(--mut); font-weight:500; }
-        .s-ok { color:var(--ok); } .s-err { color:var(--err); } .s-info { color:var(--acc); }
-        .s-warn { color:#f5b84b; }
-        .chk { display:flex; gap:8px; padding:4px 0; font-size:12px; border-bottom:1px solid var(--line); }
+        th, td { text-align:left; padding:5px; border-bottom:1px solid var(--line); vertical-align:top; }
+        th { color:var(--mut); font-weight:500; position:sticky; top:0; background:var(--panel); }
+        .s-ok { color:var(--ok); } .s-err { color:var(--err); } .s-info { color:var(--acc); } .s-warn { color:var(--warn); }
+        .chk { display:flex; gap:8px; padding:3px 0; font-size:12px; border-bottom:1px solid var(--line); }
         .chk .dot { flex:0 0 8px; height:8px; margin-top:5px; border-radius:50%; }
         .chk b { font-weight:600; } .chk span { color:var(--mut); }
-        #ready { font-weight:700; margin-bottom:6px; }
-        .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px; }
+        .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
         .gallery figure { margin:0; background:#111317; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
         .gallery img { width:100%; aspect-ratio:640/512; object-fit:cover; display:block; background:#000; }
-        .gallery figcaption { padding:6px; font-size:11px; color:var(--mut); }
-        .gallery figcaption b { color:var(--txt); }
-        .gallery a { color:var(--acc); }
+        .gallery figcaption { padding:5px; font-size:11px; color:var(--mut); }
+        .gallery figcaption b { color:var(--txt); } .gallery a { color:var(--acc); }
     </style>
 </head>
 <body>
-<main>
-    <div style="display:grid; gap:16px; align-content:start">
-        <section>
-            <h2>Comprobación antes de volar</h2>
-            <div id="ready" style="color:var(--mut)">Comprobando…</div>
-            <div id="checks"></div>
-            <button onclick="health()">Comprobar ahora</button>
-            <button onclick="reconnectDock()">Reconectar Dock</button>
-        </section>
+<header>
+    <h1>IADron</h1>
+    <span id="ready">Comprobando…</span>
+    <span class="sp"></span>
+    <button class="stop" onclick="navStop()" title="Cancela el punto y deja el dron quieto en el aire">PARAR</button>
+    <button class="land" onclick="landNow()" title="Aterriza donde está; se pausa si ve un obstáculo debajo">Aterrizar</button>
+    <button class="danger" onclick="emergencyStop()" title="Frenada de emergencia del propio dron; también cancela un aterrizaje">Emergencia</button>
+    <button onclick="rth()" title="Sube a la altura de vuelta y va al Dock">Return Home</button>
+    <button onclick="rthCancel()" title="Cancela la vuelta: el dron se queda quieto">Cancelar vuelta</button>
+</header>
+<nav class="tabs">
+    <button data-t="vuelo" onclick="tab('vuelo')">Vuelo</button>
+    <button data-t="termica" onclick="tab('termica')">Térmica</button>
+    <button data-t="estado" onclick="tab('estado')">Estado</button>
+    <button data-t="registro" onclick="tab('registro')">Registro</button>
+</nav>
+<div id="last">Sin acciones todavía.</div>
+
+<!-- ============ VUELO ============ -->
+<div class="pane" id="p-vuelo">
+    <div class="col">
         <section>
             <h2>Despegue</h2>
-            <label>Altura sobre el Dock (m)</label><input id="h" value="2">
-            <button class="danger" onclick="takeoff()">DESPEGAR</button>
+            <div class="inline">
+                <div><label>Altura sobre el Dock (m)</label><input id="h" value="2"></div>
+                <button class="danger" onclick="takeoff()">DESPEGAR</button>
+            </div>
         </section>
+        <section>
+            <h2>Ir a un punto (DRC)</h2>
+            <div class="row2" style="margin-bottom:8px">
+                <button onclick="drcEnter()" style="margin:0">1. Entrar en DRC</button>
+                <button onclick="navOrigin()" style="margin:0">2. Fijar origen</button>
+            </div>
+            <div class="xyz">
+                <div><label>X (m)</label><input id="nx" value="1"></div>
+                <div><label>Y (m)</label><input id="ny" value="0"></div>
+                <div><label>Z (m)</label><input id="nz" value="1.5"></div>
+                <div><label>Yaw (°)</label><input id="nyaw" placeholder="libre"></div>
+            </div>
+            <button class="primary" onclick="navGoto()">3. Ir al punto</button>
+            <button onclick="drcExit()">Salir de DRC</button>
+        </section>
+    </div>
+    <div class="col">
+        <section class="grow">
+            <h2>Navegación</h2>
+            <div id="nav"><span style="color:var(--mut)">Sin datos.</span></div>
+        </section>
+    </div>
+</div>
+
+<!-- ============ TÉRMICA ============ -->
+<div class="pane" id="p-termica">
+    <div class="col">
         <section>
             <h2>Foto térmica</h2>
-            <button class="primary" id="shot" onclick="photo()">Hacer foto</button>
+            <button class="primary" id="shot" onclick="photo()" style="margin-top:0">Hacer foto</button>
             <div class="auto"><input type="checkbox" id="auto" onchange="toggleAuto()"><label for="auto">Repetir cada</label>
-                <input id="every" value="3" style="width:60px"> s</div>
+                <input id="every" value="3" style="width:55px"> s</div>
         </section>
-        <section>
+        <section class="grow">
             <h2>Tiempo real (vídeo → IA)</h2>
             <label>Vídeo RTSP (vacío = el del yml)</label>
             <input id="rtsp" placeholder="rtsp://localhost:8554/live/1581F6Q8D247300G9889-81-0-0">
-            <button class="primary" onclick="liveStart()">Iniciar envío en vivo</button>
-            <button onclick="liveStop()">Detener</button>
+            <div class="row2"><button class="primary" onclick="liveStart()">Iniciar</button><button onclick="liveStop()">Detener</button></div>
             <div id="live" style="margin-top:8px"></div>
         </section>
-        <section>
-            <h2>Volver</h2>
-            <button onclick="rth()">Return Home</button>
-        </section>
     </div>
-
-    <div style="display:grid; gap:16px; align-content:start">
-        <section>
-            <h2>Capturas en vivo (guardadas en MinIO)</h2>
-            <div id="gallery" class="gallery"><span style="color:var(--mut)">Aún no hay capturas. Inicia el envío en vivo.</span></div>
+    <div class="col">
+        <section class="grow" style="flex:1.3">
+            <h2>Capturas en vivo (MinIO)</h2>
+            <div id="gallery" class="gallery"><span style="color:var(--mut)">Aún no hay capturas.</span></div>
         </section>
-        <section>
+        <section class="grow">
             <h2>Fotos recibidas</h2>
             <table><thead><tr><th>Hora</th><th>Fichero</th><th>Estado</th><th>Detalle</th></tr></thead>
                 <tbody id="events"><tr><td colspan="4" style="color:var(--mut)">Aún no ha llegado ninguna foto.</td></tr></tbody></table>
         </section>
+    </div>
+</div>
+
+<!-- ============ ESTADO ============ -->
+<div class="pane" id="p-estado">
+    <div class="col">
         <section>
-            <h2>Respuestas</h2>
-            <div id="log"></div>
+            <h2>Acciones</h2>
+            <button onclick="health()" style="margin-top:0">Comprobar ahora</button>
+            <button onclick="reconnectDock()">Reconectar Dock</button>
         </section>
     </div>
-</main>
+    <div class="col">
+        <section class="grow">
+            <h2>Comprobación antes de volar</h2>
+            <div id="checks"></div>
+        </section>
+    </div>
+</div>
+
+<!-- ============ REGISTRO ============ -->
+<div class="pane single" id="p-registro">
+    <section class="grow">
+        <h2>Respuestas del servidor</h2>
+        <div id="log"></div>
+    </section>
+</div>
 
 <script>
     const DOCK = '7CTXM8S00B00YC';
@@ -96,6 +165,9 @@
     const $ = id => document.getElementById(id);
 
     function log(title, data, ok) {
+        const last = $('last');
+        last.textContent = `${new Date().toLocaleTimeString()} · ${title}: ` + (typeof data === 'string' ? data : (data && data.message) || (ok ? 'OK' : 'error'));
+        last.className = ok ? 's-ok' : 's-err';
         const div = document.createElement('div');
         div.style.marginBottom = '10px';
         div.innerHTML = `<b class="${ok ? 's-ok' : 's-err'}">${new Date().toLocaleTimeString()} · ${title}</b><pre></pre>`;
@@ -103,13 +175,15 @@
         $('log').prepend(div);
     }
 
-    async function call(method, url) {
+    async function call(method, url, body) {
         if (!token) {
             const r = await fetch('/manage/api/v1/login', { method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ username:'adminPC', password:'adminPC', flag:1 }) });
             token = (await r.json()).data.access_token;
         }
-        const r = await fetch(url, { method, headers:{ 'x-auth-token': token } });
+        const headers = { 'x-auth-token': token };
+        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        const r = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
         const text = await r.text();
         try { return JSON.parse(text); } catch { return text || ('HTTP ' + r.status); }
     }
@@ -142,7 +216,9 @@
     }
 
     async function rth() {
+        if (!confirm('Return Home: el dron SUBE a la altura de vuelta y va al Dock. En interior sin GNSS puede comportarse de forma imprevisible. ¿Continuar?')) return;
         $('auto').checked = false; clearInterval(autoTimer);
+        try { await call('POST', `${NAV}/nav/stop`); } catch {}
         try {
             const r = await call('POST', `/control/api/v1/devices/${DOCK}/jobs/return_home`);
             log('Return Home', r, r && r.code === 0);
@@ -177,7 +253,7 @@
         try {
             const r = await call('GET', `/iadron/api/v1/health?dock=${DOCK}`);
             if (!r || !r.checks) { $('ready').textContent = 'Sin respuesta del servidor'; $('ready').style.color = 'var(--err)'; return; }
-            $('ready').textContent = r.ready ? 'LISTO PARA VOLAR' : 'NO VOLAR: revisa lo que está en rojo';
+            $('ready').textContent = r.ready ? '● LISTO PARA VOLAR' : '● NO VOLAR: mira la pestaña Estado';
             $('ready').style.color = r.ready ? 'var(--ok)' : 'var(--err)';
             const box = $('checks'); box.innerHTML = '';
             r.checks.forEach(c => {
@@ -274,6 +350,90 @@
         } catch {}
     }
     setInterval(gallery, 3000); gallery();
+
+    // ------------------------------------------------------------ Ir a un punto (DRC)
+    const NAV = `/iadron/api/v1/devices/${DOCK}`;
+    const okResp = r => r && r.code === 0;
+
+    async function navCall(title, method, path, body) {
+        try {
+            const r = await call(method, `${NAV}${path}`, body);
+            log(title, okResp(r) ? (r.data ?? 'OK') : (r && r.message) || r, okResp(r));
+            navStatus();
+            return r;
+        } catch (e) { log(title, String(e), false); }
+    }
+
+    const drcEnter = () => navCall('Entrar en DRC', 'POST', '/drc/enter');
+    const drcExit = () => navCall('Salir de DRC', 'POST', '/drc/exit');
+    const navOrigin = () => navCall('Fijar origen', 'POST', '/nav/origin');
+    const navStop = () => navCall('PARAR', 'POST', '/nav/stop');
+
+    function navGoto() {
+        const num = id => parseFloat($(id).value);
+        const p = { x: num('nx'), y: num('ny'), z: num('nz') };
+        if ([p.x, p.y, p.z].some(isNaN)) { alert('X, Y y Z tienen que ser números'); return; }
+        const yaw = $('nyaw').value.trim();
+        if (yaw !== '') { p.yaw = parseFloat(yaw); if (isNaN(p.yaw)) { alert('Yaw tiene que ser un número o estar vacío'); return; } }
+        navCall(`Ir a (${p.x}, ${p.y}, ${p.z})${p.yaw != null ? ' yaw ' + p.yaw + '°' : ''}`, 'POST', '/nav/goto', p);
+    }
+
+    async function emergencyStop() {
+        if (!confirm('Parada de EMERGENCIA DRC: el dron frena en seco. ¿Continuar?')) return;
+        try { await call('POST', `${NAV}/nav/stop`); } catch {}
+        navCall('Emergencia', 'POST', '/drc/emergency-stop');
+    }
+
+    async function rthCancel() {
+        try {
+            const r = await call('POST', `/control/api/v1/devices/${DOCK}/jobs/return_home_cancel`);
+            log('Cancelar vuelta', r, r && r.code === 0);
+        } catch (e) { log('Cancelar vuelta', String(e), false); }
+    }
+
+    function landNow() {
+        if (!confirm('ATERRIZAR donde está ahora (no en el Dock). Se pausa si detecta un obstáculo debajo; "Emergencia" lo cancela. Después hay que recogerlo a mano. ¿Continuar?')) return;
+        $('auto').checked = false; clearInterval(autoTimer);
+        navCall('Aterrizar', 'POST', '/nav/land');
+    }
+
+    async function navStatus() {
+        try {
+            const r = await call('GET', `${NAV}/nav/status`);
+            const d = okResp(r) ? r.data : null;
+            if (!d) return;
+            const colors = { YENDO:'var(--acc)', GIRANDO:'var(--acc)', LLEGADO:'var(--ok)', ABORTADO:'var(--err)' };
+            const f = v => v == null ? '—' : Number(v).toFixed(2);
+            const rows = [
+                ['Estado', d.state, colors[d.state]],
+                ['Mensaje', d.message || '—', d.state === 'ABORTADO' ? 'var(--err)' : null],
+                ['Posición', d.origin_set ? `x ${f(d.x)} · y ${f(d.y)} · z ${f(d.z)} m` : 'sin origen'],
+                ['Z respecto a', d.z_ref === 'despegue' ? 'despegue' : d.z_ref ? 'origen (sin referencia de despegue)' : '—', d.z_ref === 'origen' ? '#f5b84b' : null],
+                ['Rumbo', d.heading != null ? `${Number(d.heading).toFixed(1)}° (origen ${Number(d.origin_heading).toFixed(1)}°)` : '—'],
+                ['Velocidad', d.vx_origin != null ? `${f(Math.hypot(d.vx_origin, d.vy_origin))} m/s` : '—'],
+                ['Destino', d.target ? `(${d.target.slice(0, 3).join(', ')})${d.target[3] != null ? ' yaw ' + d.target[3] + '°' : ''}` : '—'],
+                ['Marco velocidad', d.speed_frame || '—'],
+            ];
+            const box = $('nav'); box.innerHTML = '';
+            rows.forEach(([k, v, c]) => {
+                const row = document.createElement('div'); row.className = 'chk';
+                const b = document.createElement('b'); b.textContent = k + ' ';
+                const sp = document.createElement('span'); sp.textContent = v; if (c) sp.style.color = c;
+                const t = document.createElement('div'); t.append(b, sp); row.append(t); box.appendChild(row);
+            });
+        } catch {}
+    }
+    setInterval(navStatus, 1000); navStatus();
+
+    // ------------------------------------------------------------ pestañas
+    function tab(name) {
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === name));
+        document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + name));
+        try { localStorage.setItem('iadron-tab', name); } catch {}
+    }
+    let savedTab = 'vuelo';
+    try { savedTab = localStorage.getItem('iadron-tab') || 'vuelo'; } catch {}
+    tab(savedTab);
 </script>
 </body>
 </html>
