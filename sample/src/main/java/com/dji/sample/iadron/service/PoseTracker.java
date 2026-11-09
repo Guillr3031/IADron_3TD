@@ -64,6 +64,7 @@ public class PoseTracker {
 
     private final Map<String, DronePose> latestByGateway = new ConcurrentHashMap<>();
     private final Map<String, DronePose> latestByDrone = new ConcurrentHashMap<>();
+    private final Map<String, DronePose> latestDockOsdByGateway = new ConcurrentHashMap<>();
     private final Map<String, PositioningStatus> positioningByDrone = new ConcurrentHashMap<>();
     /** Para registrar en log sólo los cambios de estado GNSS, no cada mensaje. */
     private final Map<String, Boolean> lastGnssUsable = new ConcurrentHashMap<>();
@@ -190,7 +191,9 @@ public class PoseTracker {
     public Optional<DronePose> latestByGateway(String gatewaySn) {
         return Optional.ofNullable(latestByGateway.get(gatewaySn));
     }
-
+    public Optional<DronePose> latestDockOsd(String gatewaySn) {
+        return Optional.ofNullable(latestDockOsdByGateway.get(gatewaySn));
+    }
     public Optional<DronePose> latestByDrone(String droneSn) {
         return Optional.ofNullable(latestByDrone.get(droneSn));
     }
@@ -209,6 +212,9 @@ public class PoseTracker {
             return;
         }
         latestByGateway.put(pose.getGatewaySn(), pose);
+        if (pose.getSource() == DronePose.Source.DOCK_OSD) {
+            latestDockOsdByGateway.put(pose.getGatewaySn(), pose);
+        }
         if (pose.getDroneSn() != null) {
             latestByDrone.put(pose.getDroneSn(), pose);
         }

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import com.dji.sample.component.redis.RedisOpsUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 public class DockAutoReconnect {
 
     private static final long COOLDOWN_MS = 120_000;
+    private static final String AIRBORNE_KEY = "iadron:drone_last_airborne";
+    private static final int AIRBORNE_MEMORY_SECONDS = 30 * 60;
 
     private final EmqxApiClient emqx;
     private final IDeviceRedisService redis;
@@ -52,6 +55,18 @@ public class DockAutoReconnect {
                 .collect(Collectors.toList());
     }
 
+    /** Cada 5 s: recuerda si el dron estaba en el aire, para no expulsar al Dock en pleno vuelo tras una caída del servidor. */
+    @Scheduled(initialDelay = 5_000, fixedDelay = 5_000)
+    public void rememberFlightState() {
+        redis.getDeviceOsd(drone, OsdDockDrone.class).ifPresent(o -> {
+            if (o.getElevation() != null && o.getElevation() > 0.5f) {
+                RedisOpsUtils.setWithExpire(AIRBORNE_KEY, System.currentTimeMillis(), AIRBORNE_MEMORY_SECONDS);
+            } else {
+                RedisOpsUtils.del(AIRBORNE_KEY);
+            }
+        });
+    }
+
     @Scheduled(initialDelay = 15_000, fixedDelay = 30_000)
     public void check() {
         if (!enabled) {
@@ -62,7 +77,12 @@ public class DockAutoReconnect {
                 boolean inEmqx = emqx.isConnected(dock);
                 boolean inRedis = Boolean.TRUE.equals(redis.checkDeviceOnline(dock));
                 if (inEmqx && !inRedis) {
-                    reconnect(dock, "conectado a EMQX pero offline en el servidor");
+                    if (RedisOpsUtils.checkExist(AIRBORNE_KEY)) {
+                        log.warn("[IADRON-EMQX] {} offline en el servidor, pero la última vez el dron estaba EN EL AIRE: "
+                                + "no se expulsa. Cuando esté en tierra, usa 'Reconectar Dock'.", dock);
+                    } else {
+                        reconnect(dock, "conectado a EMQX pero offline en el servidor");
+                    }
                 }
             } catch (Exception e) {
                 log.debug("[IADRON-EMQX] Comprobación de {} omitida: {}", dock, e.getMessage());
@@ -87,6 +107,9 @@ public class DockAutoReconnect {
     }
 
     private boolean droneAirborne() {
+        if (RedisOpsUtils.checkExist(AIRBORNE_KEY)) {
+            return true;
+        }
         Optional<OsdDockDrone> osd = redis.getDeviceOsd(drone, OsdDockDrone.class);
         return osd.map(o -> o.getElevation() != null && o.getElevation() > 0.5f).orElse(false);
     }
