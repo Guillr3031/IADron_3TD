@@ -22,9 +22,6 @@ import java.util.concurrent.TimeUnit;
  * Cada 100 ms:
  *   1. lee la última telemetría DRC (10 Hz) de PoseTracker y, si es nueva, actualiza la odometría;
  *   2. si hay un destino activo, calcula la orden y la manda por DrcSessionService (joystick DRC).
- *
- * La odometría corre siempre desde que se fija el origen, aunque no haya destino, para no perder la posición
- * entre un punto y el siguiente.
  */
 @Slf4j
 @Service
@@ -73,7 +70,7 @@ public class GoToPointService {
     public Map<String, Object> setOrigin(String dockSn) {
         DronePose p = freshDrcPose(dockSn);
         PointNavigator nav = navigators.computeIfAbsent(dockSn, k -> new PointNavigator());
-        // Altura absoluta del despegue = height - elevation de la OSD normal (los dos valores del mismo mensaje)
+        // Altura absoluta del despegue = height - elevation de la OSD normal
         Double takeoff = poseTracker.latestDockOsd(dockSn)
                 .filter(d -> d.getHeight() != null && d.getElevation() != null)
                 .map(d -> (double) d.getHeight() - d.getElevation())
@@ -120,9 +117,8 @@ public class GoToPointService {
             nav.cancel("Aterrizando");
         }
         if (drcSessionService.isActive(dockSn)) {
-            drcSessionService.hold(dockSn);   // palancas a 0 (ráfaga de ~0,5 s)
+            drcSessionService.hold(dockSn);   // palancas a 0
         }
-        // Se manda cuando ha terminado la ráfaga de ceros, para que ninguna orden de joystick llegue después
         loop.schedule(() -> {
             drcDownPublish.publish(dockSn, "drc_emergency_landing");
             poseTracker.logDrcEvent(dockSn, "landing_sent", null);
@@ -153,15 +149,14 @@ public class GoToPointService {
         // 1. Odometría con cada muestra NUEVA de la OSD DRC
         poseTracker.latestByGateway(dockSn).ifPresent(p -> {
             if (p.getSource() != DronePose.Source.DRC_OSD) {
-                return;   // la OSD normal (0,5 Hz) no trae speed_x/speed_y
+                return;
             }
             Long last = lastSampleAt.get(dockSn);
             if (last != null && p.getReceivedAt() <= last) {
-                return;   // misma muestra que en el tick anterior
+                return;
             }
             lastSampleAt.put(dockSn, p.getReceivedAt());
             if (p.getSpeedX() == null || p.getSpeedY() == null || p.getAttitudeHead() == null || p.getHeight() == null) {
-                // Un 0 inventado haría creer que el dron está quieto mientras se mueve: mejor parar.
                 nav.abortExternal("Telemetría DRC incompleta (falta velocidad, rumbo o altura)");
                 return;
             }
@@ -193,7 +188,7 @@ public class GoToPointService {
                     drcSessionService.hold(dockSn);   // llegado o abortado: estacionario
                 }
             }
-            // Registro en el log de vuelo (logs/iadron) para analizar la deriva después
+            // Registro en el log de vuelo (logs/iadron)
             poseTracker.logDrcEvent(dockSn, "nav", nav.status());
         }
 
@@ -205,8 +200,7 @@ public class GoToPointService {
     }
 
     /**
-     * ¿Es seguro mandar esta orden? Devuelve el motivo si NO lo es.
-     * c está en el marco del dron: x adelante, y derecha, h arriba.
+     * Sesor de obstaculos para poder mandar ordenes
      */
     private String obstacleCheck(String dockSn, PointNavigator.Command c) {
         HsiTracker.Reading r = hsiTracker.get(dockSn);
@@ -219,7 +213,7 @@ public class GoToPointService {
         }
         double horiz = Math.hypot(c.x, c.y);
         if (horiz > 0.01) {
-            // Ángulo de avance en el marco del dron, como around_distance: 0 = frente, 90 = derecha (horario)
+            // Ángulo de avance en el marco del dron
             double angle = Math.toDegrees(Math.atan2(c.y, c.x));
             int min = HsiTracker.minAround(d, angle, 45);
             if (min == HsiTracker.NO_DATA) {

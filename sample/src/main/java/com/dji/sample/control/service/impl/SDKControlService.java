@@ -146,6 +146,10 @@ public class SDKControlService extends AbstractControlService {
 
     @Override
     public void heartBeatUp(TopicDrcRequest<HeartBeatRequest> request, MessageHeaders headers) {
+        if (request.getData() != null && request.getData().getTimestamp() != null) {
+            long d = System.currentTimeMillis() - request.getData().getTimestamp();
+            if (Math.abs(d) > 300) log.warn("[IADRON] latido del Dock: diferencia de {} ms con el reloj del servidor", d);
+        }
         drcLinkMonitor.heartbeatAck(dockSnFromTopic(headers));
     }
 

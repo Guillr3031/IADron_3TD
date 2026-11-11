@@ -88,6 +88,7 @@ logging:
   level:
     com.dji: info
     com.dji.sample.iadron: debug
+    com.dji.sdk.mqtt.MqttConfiguration: warn
 
 # ------------------------------------------------------------------ IADron
 iadron:
@@ -112,7 +113,7 @@ iadron:
     guard-mode: WARN
   drc:
     stick-frequency-hz: 10
-    delay-time-ms: 300
+    delay-time-ms: 1000
     heartbeat-period-ms: 1000
     max-command-duration-ms: 1000
     max-horizontal-speed: 1.0
@@ -130,16 +131,19 @@ iadron:
     tcp-host: ${IADRON_IA_HOST:127.0.0.1}
     tcp-port: ${IADRON_IA_PORT:5555}
     tcp-framing: ${IADRON_IA_FRAMING:NEWLINE}
+    tcp-keep-open: ${IADRON_IA_KEEP_OPEN:true}
+    delete-after-send: ${IADRON_DELETE_AFTER_SEND:false}
     replay:
       enabled: ${IADRON_REPLAY:false}
       dir: ${IADRON_REPLAY_DIR:C:/iadron/dataset_m3td}
-      interval-ms: 3000
+      interval-ms: 1000
+      max-messages: ${IADRON_REPLAY_MAX:0}
   ia:
     enabled: ${IA_ENABLED:true}
-    url: ${IA_URL:http://localhost:6789/iadron/api/v1/ia/mock}   # de momento, la IA falsa
+    url: ${IA_URL:http://localhost:6789/iadron/api/v1/ia/mock}   #Pruebas descartadas
     send-mode: ${IA_SEND_MODE:BASE64}
     only-thermal: true
-    payload: ${IA_PAYLOAD:THERMAL_IMAGE}     # RJPEG = enviar el fichero tal cual, como antes
+    payload: ${IA_PAYLOAD:THERMAL_IMAGE}
     irp-path: ${IA_IRP_PATH:C:/Users/BEC/IdeaProjects/Thermal_SDK/utility/bin/windows/release_x64/dji_irp.exe}
   live:
     ffmpeg-path: C:/Users/BEC/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe

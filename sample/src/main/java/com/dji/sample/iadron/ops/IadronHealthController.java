@@ -8,6 +8,7 @@ import com.dji.sample.manage.service.IDeviceService;
 import com.dji.sdk.cloudapi.device.DockModeCodeEnum;
 import com.dji.sdk.cloudapi.device.OsdDock;
 import com.dji.sdk.cloudapi.storage.CredentialsToken;
+import com.dji.sdk.mqtt.property.PropertySetReplyResultEnum;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -200,5 +201,24 @@ public class IadronHealthController {
         m.put("status", status);
         m.put("detail", detail);
         return m;
+    }
+    /**
+     * Cambia un límite del dron.
+     */
+    @PutMapping("/limits")
+    public Map<String, Object> setLimit(@RequestParam(defaultValue = "7CTXM8S00B00YC") String dock,
+                                        @RequestBody JsonNode body) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        if (body.size() != 1) {
+            r.put("error", "Manda una sola propiedad cada vez");
+            return r;
+        }
+        try {
+            int code = deviceService.devicePropertySet(null, dock, body);
+            r.put("result", code == PropertySetReplyResultEnum.SUCCESS.getResult() ? "OK" : "Error " + code);
+        } catch (Exception e) {
+            r.put("error", e.getMessage());
+        }
+        return r;
     }
 }

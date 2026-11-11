@@ -1,31 +1,25 @@
 package com.dji.sample.iadron.nav;
 
 /**
- * IADron - PRUEBA: ir a un punto (x, y, z, yaw), como flyTo() del Mini 4 Pro.
+ * IADron - PRUEBA: ir a un punto (x, y, z, yaw)
  *
  *  Recibe la telemetría y devuelve la orden de joystick.
  *
- * Marco ORIGEN:
- *   X/Y: (0,0)
- *   Z:   altura sobre el punto de DESPEGUE . Yaw: rumbo absoluto en grados.
- *
- * Posición: X/Y integrando la velocidad de la telemetría (odometría); Z = altura absoluta - altura absoluta del despegue.
- * Órdenes DRC (confirmado con la web oficial de DJI): x = adelante(+), y = derecha(+), h = arriba(+) en m/s;
- *   w = giro horario(+) en °/s.
  */
 public class PointNavigator {
 
     // ---------------------------------------------------------------- ajustes (para afinar en pruebas)
 
-    /** En qué marco llegan speed_x/speed_y de la telemetría DRC. HAY QUE COMPROBARLO en la prueba 1. */
     public enum SpeedFrame { NED, BODY }
     public static SpeedFrame SPEED_FRAME = SpeedFrame.NED;
 
     // Velocidades de prueba
-    // DrcSessionService recorta además a iadron.drc.max-* (1,0 m/s / 0,5 m/s / 30 °/s).
     static final double MAX_SPEED = 0.3;        // m/s horizontal
     static final double MIN_SPEED = 0.05;       // m/s: Velocidad minima
-    static final double SLOW_RADIUS = 0.8;      // m: cuando empieza a frenar
+    static final double BOOST_STEP = 0.01;      // m/s que se suma cada 100 ms si se atasca cerca del destino (zona muerta DJI)
+    static final double MAX_BOOST = 0.07;       // m/s: EMpujon para zonas muertas
+    static final double FINE_H = 0.10;          // m: correccion para ajustar arriveH
+    static final double SLOW_RADIUS = 0.5;      // m: cuando empieza a frenar
     static final double KP_Z = 0.6;
     static final double MAX_VZ = 0.3;           // m/s
     static final double Z_DEADBAND = 0.03;      // m
@@ -35,7 +29,7 @@ public class PointNavigator {
     static final double ARRIVE_YAW_RATE = 2;    // °/s: el giro tiene que haber parado
     static final double SMOOTH = 0.4;           // suavizado de órdenes (0 = nada)
 
-    static final double ARRIVE_H = 0.15;        // m
+    static final double ARRIVE_H = 0.10;        // m: máxima precisión de llegada
     static final double ARRIVE_Z = 0.10;        // m
     static final double ARRIVE_SPEED = 0.10;    // m/s
     static final double ARRIVE_YAW = 5;         // °
@@ -45,14 +39,12 @@ public class PointNavigator {
     static final double WRONG_DIR_DEG = 60;     // º Si el dron se tuerce mucho
     static final long WRONG_DIR_MS = 1500;      //Se para si detecta mal los ejes
     static final double WRONG_DIR_MIN_SPEED = 0.05;   // m/s: por debajo no se evalúa
-    /** Orden de avance > NO_MOVE_CMD y velocidad medida < NO_MOVE_SPEED durante NO_MOVE_MS -> parar
-     *  (velocidad no fiable, p. ej. modo ATTI, o dron bloqueado por la evitación de DJI). */ //sujeto a pruebas
     static final double NO_MOVE_CMD = 0.10;
     static final double NO_MOVE_SPEED = 0.03;
-    static final long NO_MOVE_MS = 2000;
+    static final long NO_MOVE_MS = 5000;
     static final long TELEMETRY_STALE_MS = 600; // sin telemetría nueva abortamos operacion
 
-    // ---------------------------------------------------------------- estado
+    // EStado
 
     public enum State { SIN_ORIGEN, PARADO, YENDO, GIRANDO, LLEGADO, ABORTADO }
 
@@ -72,6 +64,7 @@ public class PointNavigator {
     private long noMoveSinceMs;
     private long legMaxMs;
     private double lastCx, lastCy, lastCh, lastCw;
+    private double boost;             // empujón para vencer la zona muerta cerca del destino
     private State state = State.SIN_ORIGEN;
     private String message = "Fija el origen";
 
@@ -103,7 +96,7 @@ public class PointNavigator {
                 zFromTakeoff ? "sobre el despegue" : "(SIN referencia de despegue: Z relativa a este punto)"));
     }
 
-    /** Una muestra NUEVA de telemetría DRC. speedX/speedY según SPEED_FRAME. */
+    /** Una muestra de telemetría DRC. speedX/speedY según SPEED_FRAME. */
     public synchronized void onTelemetry(double speedX, double speedY, double headingDeg, double height, long sampleMs) {
         double dt = Math.max(0, Math.min(0.3, (sampleMs - lastSampleMs) / 1000.0));
         if (dt > 0) {
@@ -129,7 +122,7 @@ public class PointNavigator {
         z = height - takeoffHeight;
     }
 
-    // ---------------------------------------------------------------- destino
+    // Destino
 
     public synchronized void start(double targetX, double targetY, double targetZ, Double yawDeg, long now) {
         if (!originSet) {
@@ -147,6 +140,7 @@ public class PointNavigator {
         double legDist = Math.sqrt(Math.pow(targetX - x, 2) + Math.pow(targetY - y, 2) + Math.pow(targetZ - z, 2));
         legMaxMs = 20000 + (long) (3000 * legDist / Math.min(MAX_SPEED, MAX_VZ));
         lastCx = lastCy = lastCh = lastCw = 0;
+        boost = 0;
         state = State.YENDO;
         message = String.format("Yendo a (%.2f, %.2f, %.2f) yaw %s", tx, ty, tz, tyaw == null ? "libre" : String.format("%.0f°", tyaw));
     }
@@ -184,17 +178,17 @@ public class PointNavigator {
         double yawErr = tyaw == null ? 0 : norm180(tyaw - heading);
         boolean okH = dH < ARRIVE_H, okZ = Math.abs(dz) < ARRIVE_Z;
 
-        // ---- Le mando avanzar y la telemetría no ve movimiento: velocidad no fiable (¿modo ATTI?) -> parar
+        // ---- Le mando avanzar y la telemetría no ve movimiento: parar
         if (Math.hypot(lastCx, lastCy) > NO_MOVE_CMD && speed < NO_MOVE_SPEED) {
             if (noMoveSinceMs == 0) noMoveSinceMs = now;
             if (now - noMoveSinceMs > NO_MOVE_MS) {
-                return abort("Ordeno avanzar y la telemetría no ve movimiento en 2 s: velocidad no fiable o el dron está bloqueado");
+                return abort("Ordeno avanzar y la telemetría no ve movimiento en " + NO_MOVE_MS / 1000 + " s: velocidad no fiable o el dron está bloqueado");
             }
         } else {
             noMoveSinceMs = 0;
         }
 
-        // ---- ¿Va hacia donde se le manda? (compara la orden anterior con la velocidad medida, marco origen)
+        // Esta yendo hacia donde se le esta marcando? Sino abortar
         double cmdSpeed = Math.hypot(lastCx, lastCy);
         if (cmdSpeed > WRONG_DIR_MIN_SPEED && speed > WRONG_DIR_MIN_SPEED) {
             double cos = (lastCx * vxO + lastCy * vyO) / (cmdSpeed * speed);
@@ -214,7 +208,7 @@ public class PointNavigator {
         boolean okYaw = Math.abs(yawErr) < ARRIVE_YAW;
         boolean yawStill = Math.abs(yawRate) < ARRIVE_YAW_RATE;
 
-        // ---- Llegada: dentro de tolerancia y quieto durante SETTLE_MS, con el yaw alineado
+        //  Llegada: dentro de tolerancia y quieto durante SETTLE_MS, con el yaw alineado
         if (okH && okZ && speed < ARRIVE_SPEED) {
             if (nearSinceMs == 0) nearSinceMs = now;
         } else {
@@ -228,26 +222,30 @@ public class PointNavigator {
 
         double cx = 0, cy = 0, ch = 0, cw = 0;
 
-        if (okH && okZ) {
-            // ---- En el punto: solo girar (como en el Mini, el yaw se corrige al llegar)
-            state = State.GIRANDO;
-            if (!okYaw) {
-                cw = clamp(yawErr * YAW_KP, MAX_YAW_RATE);
-                if (Math.abs(cw) < MIN_YAW_RATE) cw = Math.signum(yawErr) * MIN_YAW_RATE;
+        state = (okH && okZ) ? State.GIRANDO : State.YENDO;
+        // ---- En el punto: girar (como en el Mini, el yaw se corrige al llegar)
+        if (okH && okZ && !okYaw) {
+            cw = clamp(yawErr * YAW_KP, MAX_YAW_RATE);
+            if (Math.abs(cw) < MIN_YAW_RATE) cw = Math.signum(yawErr) * MIN_YAW_RATE;
+        }
+        // ---- Avance horizontal en el marco origen: frena al acercarse y sigue corrigiendo
+        //      dentro de la tolerancia (hasta FINE_H) para no quedarse corto
+        if (dH > FINE_H) {
+            double mag = MAX_SPEED * Math.min(1.0, dH / SLOW_RADIUS);
+            if (speed < 0.03 && dH < SLOW_RADIUS) {
+                boost = Math.min(MAX_BOOST, boost + BOOST_STEP);
+            } else if (speed > 0.06) {
+                boost = Math.max(0, boost - BOOST_STEP);
             }
+            mag = Math.min(MAX_SPEED, Math.max(MIN_SPEED + boost, mag));
+            cx = dx / dH * mag;
+            cy = dy / dH * mag;
         } else {
-            state = State.YENDO;
-            // ---- Avance horizontal en el marco origen: frena al acercarse
-            if (!okH) {
-                double mag = MAX_SPEED * Math.min(1.0, dH / SLOW_RADIUS);
-                mag = Math.max(MIN_SPEED, mag);
-                cx = dx / dH * mag;
-                cy = dy / dH * mag;
-            }
-            // ---- Altura
-            if (Math.abs(dz) > Z_DEADBAND) {
-                ch = clamp(dz * KP_Z, MAX_VZ);
-            }
+            boost = 0;
+        }
+        // ---- Altura
+        if (Math.abs(dz) > Z_DEADBAND) {
+            ch = clamp(dz * KP_Z, MAX_VZ);
         }
 
         // Suavizado
@@ -257,7 +255,7 @@ public class PointNavigator {
         cw = lastCw * SMOOTH + cw * (1 - SMOOTH);
         lastCx = cx; lastCy = cy; lastCh = ch; lastCw = cw;
 
-        // Marco origen -> marco del dron (mismo giro que en el Mini)
+        // Marco origen -> marco del dron
         double d = Math.toRadians(heading - originHeading);
         double bx = cx * Math.cos(d) + cy * Math.sin(d);
         double by = -cx * Math.sin(d) + cy * Math.cos(d);
@@ -309,6 +307,7 @@ public class PointNavigator {
         state = newState;
         message = msg;
         lastCx = lastCy = lastCh = lastCw = 0;
+        boost = 0;
     }
 
     static double norm180(double a) {

@@ -37,11 +37,6 @@ import java.util.concurrent.Executors;
 
 /**
  * Punto único donde entra toda la telemetría del dron (OSD del Dock, del RC y OSD de alta frecuencia DRC).
- *
- * - Calcula el estado GNSS (¿son fiables lat/lon?).
- * - Guarda la última pose por gateway y por dron (consultable por REST).
- * - Escribe un log JSON Lines por día en iadron.flight-log.directory para analizar deriva.
- * - Reenvía la pose al servidor central.
  */
 @Slf4j
 @Service
@@ -66,7 +61,7 @@ public class PoseTracker {
     private final Map<String, DronePose> latestByDrone = new ConcurrentHashMap<>();
     private final Map<String, DronePose> latestDockOsdByGateway = new ConcurrentHashMap<>();
     private final Map<String, PositioningStatus> positioningByDrone = new ConcurrentHashMap<>();
-    /** Para registrar en log sólo los cambios de estado GNSS, no cada mensaje. */
+    /** Para registrar en log sólo los cambios de estado GNSS */
     private final Map<String, Boolean> lastGnssUsable = new ConcurrentHashMap<>();
 
     private final ExecutorService logWriter = Executors.newSingleThreadExecutor(r -> {

@@ -53,6 +53,9 @@ public class ThermalForwarder {
                 }
                 long ts = capture.getReceivedAt() > 0 ? capture.getReceivedAt() : System.currentTimeMillis();
                 pipeline.process(capture.getFileName(), bytes, capture.getPoseAtUpload(), ts);
+                if (cfg.isDeleteAfterSend()) {
+                    boolean ok = Boolean.TRUE.equals(oss.deleteObject(capture.getBucket(), capture.getObjectKey()));
+                }
             } catch (Exception e) {
                 log.warn("[IADRON-IA] No se pudo enviar {} a la IA: {}", capture.getObjectKey(), e.getMessage());
             }
