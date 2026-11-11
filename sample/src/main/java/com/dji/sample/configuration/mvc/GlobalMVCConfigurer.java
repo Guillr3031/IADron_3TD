@@ -31,6 +31,7 @@ public class GlobalMVCConfigurer implements WebMvcConfigurer {
         excludePaths.add("/" + managePrefix + manageVersion + "/login");
         excludePaths.add("/" + managePrefix + manageVersion + "/token/refresh");
         excludePaths.add("/iadron/api/v1/ia/**");
+        excludePaths.add("/iadron/api/v1/health/**");
         excludePaths.add("/iadron-test.html");
         excludePaths.add("/swagger-ui.html");
         excludePaths.add("/swagger-ui/**");

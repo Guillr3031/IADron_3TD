@@ -42,8 +42,16 @@ public class SampleReplayService {
                 properties.getThermal().getReplay().getDir(), properties.getThermal().getReplay().getIntervalMs());
     }
 
-    @Scheduled(fixedDelayString = "${iadron.thermal.replay.interval-ms:3000}", initialDelay = 5000)
+    @Scheduled(fixedRateString = "${iadron.thermal.replay.interval-ms:1000}", initialDelay = 5000)
     public void tick() {
+        int max = properties.getThermal().getReplay().getMaxMessages();
+        if (max > 0 && next >= max) {
+            if (next == max) {
+                log.warn("[IADRON-IA] MODO PRUEBA: enviadas {} foto(s), no se envían más", max);
+                next++;   // para no repetir el aviso
+            }
+            return;
+        }
         Path dir = Paths.get(properties.getThermal().getReplay().getDir());
         List<Path> fotos = listar(dir);
         if (fotos.isEmpty()) {

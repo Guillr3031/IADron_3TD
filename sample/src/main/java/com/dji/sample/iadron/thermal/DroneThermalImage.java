@@ -26,8 +26,11 @@ public class DroneThermalImage {
         ByteBuffer b = ByteBuffer.allocate(HEADER_AND_TAIL + width * height * 4).order(ByteOrder.LITTLE_ENDIAN);
         b.put((byte) 'T').put((byte) 'I');
         b.putInt(width).putInt(height);
-        b.asFloatBuffer().put(thermalData);
-        b.position(b.position() + thermalData.length * 4);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                b.putFloat(thermalData[y * width + x]);
+            }
+        }
         b.putFloat(posX).putFloat(posY).putFloat(posZ);
         b.putFloat(rotX).putFloat(rotY).putFloat(rotZ);
         b.putFloat(gimbalX).putFloat(gimbalY).putFloat(gimbalZ);
@@ -45,8 +48,11 @@ public class DroneThermalImage {
         img.width = b.getInt();
         img.height = b.getInt();
         img.thermalData = new float[img.width * img.height];
-        b.asFloatBuffer().get(img.thermalData);
-        b.position(b.position() + img.thermalData.length * 4);
+        for (int x = 0; x < img.width; x++) {
+            for (int y = 0; y < img.height; y++) {
+                img.thermalData[y * img.width + x] = b.getFloat();
+            }
+        }
         img.posX = b.getFloat(); img.posY = b.getFloat(); img.posZ = b.getFloat();
         img.rotX = b.getFloat(); img.rotY = b.getFloat(); img.rotZ = b.getFloat();
         img.gimbalX = b.getFloat(); img.gimbalY = b.getFloat(); img.gimbalZ = b.getFloat();

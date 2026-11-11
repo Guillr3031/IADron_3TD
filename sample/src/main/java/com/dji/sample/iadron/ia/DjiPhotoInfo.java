@@ -102,7 +102,7 @@ public class DjiPhotoInfo {
                 int w = ((b[i + 7] & 0xFF) << 8) | (b[i + 8] & 0xFF);
                 return new int[]{w, h};
             }
-            if (marker == 0xDA) {          // empieza la imagen comprimida sin haber visto SOF
+            if (marker == 0xDA) {
                 break;
             }
             i += 2 + len;

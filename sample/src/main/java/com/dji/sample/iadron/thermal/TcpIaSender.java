@@ -35,13 +35,45 @@ public class TcpIaSender implements IaSender {
     @Override
     public synchronized void send(String message) throws Exception {
         byte[] frame = frame(message.getBytes(StandardCharsets.US_ASCII));
+        if (!properties.getThermal().isTcpKeepOpen()) {
+            //  conexión por mensaje
+            try {
+                write(frame);
+            } finally {
+                close();
+            }
+            return;
+        }
         try {
             write(frame);
         } catch (IOException first) {
             log.warn("[IADRON-IA] Conexión TCP perdida ({}), reconectando...", first.getMessage());
             close();
-            write(frame);   // un reintento
+            write(frame);   //  reintento
         }
+    }
+
+    private byte[] frame(byte[] payload) {
+        String framing = properties.getThermal().getTcpFraming();
+        if ("EOF_TAG".equalsIgnoreCase(framing)) {
+            // "A|base64|<EOF>": marcador de fin en texto
+            byte[] tag = "|<EOF>".getBytes(StandardCharsets.US_ASCII);
+            byte[] f = new byte[payload.length + tag.length];
+            System.arraycopy(payload, 0, f, 0, payload.length);
+            System.arraycopy(tag, 0, f, payload.length, tag.length);
+            return f;
+        }
+        if ("LENGTH_PREFIX".equalsIgnoreCase(framing)) {
+            return ByteBuffer.allocate(4 + payload.length).order(ByteOrder.LITTLE_ENDIAN)
+                    .putInt(payload.length).put(payload).array();
+        }
+        if ("NONE".equalsIgnoreCase(framing)) {
+            return payload;                            // "A|base64"
+        }
+        byte[] f = new byte[payload.length + 1];       // NEWLINE
+        System.arraycopy(payload, 0, f, 0, payload.length);
+        f[payload.length] = '\n';
+        return f;
     }
 
     private void write(byte[] frame) throws IOException {
@@ -64,16 +96,6 @@ public class TcpIaSender implements IaSender {
         log.info("[IADRON-IA] Conectado por TCP a {}:{}", cfg.getTcpHost(), cfg.getTcpPort());
     }
 
-    private byte[] frame(byte[] payload) {
-        if ("LENGTH_PREFIX".equalsIgnoreCase(properties.getThermal().getTcpFraming())) {
-            return ByteBuffer.allocate(4 + payload.length).order(ByteOrder.LITTLE_ENDIAN)
-                    .putInt(payload.length).put(payload).array();
-        }
-        byte[] f = new byte[payload.length + 1];       // NEWLINE
-        System.arraycopy(payload, 0, f, 0, payload.length);
-        f[payload.length] = '\n';
-        return f;
-    }
 
     @PreDestroy
     public synchronized void close() {

@@ -41,6 +41,7 @@ public class DrcSessionService {
     /** Ráfaga de comandos a cero al terminar un movimiento, para asegurar la parada. */
     private static final int ZERO_BURST = 5;
 
+
     @Autowired
     private IDrcService drcService;
 
@@ -71,6 +72,7 @@ public class DrcSessionService {
         volatile float x, y, h, w;
         volatile long activeUntil;
         volatile int zerosPending;
+        volatile long lastSendMs;
         ScheduledFuture<?> heartbeatTask;
         ScheduledFuture<?> stickTask;
 
@@ -129,7 +131,6 @@ public class DrcSessionService {
     public void hold(String dockSn) {
         Session s = requireSession(dockSn);
         s.activeUntil = 0;
-        sendZeros(dockSn, s, ZERO_BURST);
     }
 
     /** Parada de emergencia DRC: el dron frena y queda en estacionario. Funciona aunque no haya sesión propia. */
@@ -153,8 +154,7 @@ public class DrcSessionService {
         try {
             if (System.currentTimeMillis() < s.activeUntil) {
                 send(dockSn, s, s.x, s.y, s.h, s.w);
-            } else if (s.zerosPending > 0) {
-                s.zerosPending--;
+            } else {
                 send(dockSn, s, 0, 0, 0, 0);
             }
         } catch (RuntimeException e) {
@@ -169,6 +169,11 @@ public class DrcSessionService {
     }
 
     private void send(String dockSn, Session s, float x, float y, float h, float w) {
+        long now = System.currentTimeMillis();
+        if (s.lastSendMs != 0 && now - s.lastSendMs > 150) {
+            log.warn("[IADRON] {} hueco de {} ms entre órdenes de joystick (deberían ser 100)", dockSn, now - s.lastSendMs);
+        }
+        s.lastSendMs = now;
         IadronProperties.Drc cfg = properties.getDrc();
         DroneControlRequest req = new DroneControlRequest()
                 .setSeq(s.stickSeq.getAndIncrement())
@@ -196,6 +201,7 @@ public class DrcSessionService {
 
     private Session requireSession(String dockSn) {
         Session s = sessions.get(dockSn);
+
         if (s == null) {
             throw new IllegalStateException("No hay sesión DRC del servidor en " + dockSn + ". Llama antes a /drc/enter.");
         }

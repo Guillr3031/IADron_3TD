@@ -90,6 +90,9 @@ public class IadronProperties {
         private String tcpHost = "127.0.0.1";
         private int tcpPort = 5555;
         private String tcpFraming = "NEWLINE";
+        private boolean tcpKeepOpen = true;
+        /** Borrar de MinIO cada foto térmica después de mandarla a la IA. */
+        private boolean deleteAfterSend = false;
     }
 
     @Data
@@ -97,5 +100,6 @@ public class IadronProperties {
         private boolean enabled = false;
         private String dir = "";
         private long intervalMs = 3000;
+        private int maxMessages = 0; // 0 sin limite
     }
 }

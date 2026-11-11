@@ -1,2 +1,15 @@
 services:
-  
+  emqx:
+    image: emqx/emqx:latest
+    container_name: emqx-lab
+    restart: unless-stopped
+    ports:
+      - "1884:1883"     # MQTT
+      - "8085:8083"     # MQTT sobre WebSocket
+      - "18084:18083"   # Panel web
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+volumes:
+  emqx-data:
+  emqx-log:
